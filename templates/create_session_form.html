@@ -1,0 +1,246 @@
+{#
+    SLL override of core's emhub/templates/create_session_form.html.
+
+    Moved here 2026-09-22 (see README.rst, section 7). SLL session names
+    follow a site-specific auto-numbering convention (cem00734_00044,
+    dbb01967, fac00458, ext00001_00007 - see
+    DataManager.get_new_session_info() in core), generated server-side
+    whenever no explicit name is submitted. Core's original template
+    always required a typed name here and prepended a date/resource
+    prefix (session_name_prefix) that never matched any of this
+    instance's 2,822 existing session names - so the only change from
+    core is the Session Name field: it's now
+    optional (blank = auto-assigned by the server) and typing one no
+    longer gets a prefix silently added to it. Everything else (RAW/OTF
+    folder, Project ID, Acquisition fields, Extra form tab) is unchanged
+    from core.
+#}
+{% import "entry_macros.html" as macros %}
+
+{% set is_manager = current_user.is_manager %}
+{% set is_admin = current_user.is_admin %}
+
+<!-- Modal to with a Form to create a new Session -->
+<div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+  <div class="modal-content">
+
+    <!-- Modal header -->
+    <div class="modal-header">
+        <h3 class="modal-title" id="session-modal-title"> Create Session:  </h3>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <!-- End of Modal header -->
+
+    <!-- Modal body -->
+    <div class="modal-body">
+    <input type="hidden" id="booking-id" value="{{ booking.id }}">
+
+    <!-- Create Session Form -->
+    <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
+
+
+            <div class="tab-regular">
+                <ul class="nav nav-tabs nav-fill" id="myTab7" role="tablist">
+
+                    <li class="nav-item">
+                        <a class="nav-link active" id="session-general-tab" data-toggle="tab" href="#session-general" role="tab" aria-controls="current" aria-selected="true">General</a>
+                    </li>
+
+                    {% if session_extra_form %}
+                        <li class="nav-item">
+                            <a class="nav-link" id="session-extra-tab" data-toggle="tab" href="#session-extra" role="tab" aria-controls="summary" aria-selected="false">Extra</a>
+                        </li>
+                    {%  endif %}
+
+                </ul>
+
+                <div class="tab-content" id="myTabContent7">
+                    <!-- tab "Current" -->
+                    <div class="tab-pane fade show active" id="session-general" role="tabpanel" aria-labelledby="session-general-tab">
+
+                    <form id="session-form" data-parsley-validate="" novalidate="">
+                    <div class="row">
+                        <div class="col-7">
+                            <!-- Session's Name -->
+                            {{ macros.session_dialog_row('Session Name', 'session_name', '', 'Leave blank to auto-assign') }}
+                            <div class="form-group row">
+                                <div class="col-3"></div>
+                                <div class="col-8">
+                                    <div class="form-text text-muted" style="font-size: 1rem;">
+                                        Next auto-assigned code: <strong>{{ suggested_session_name }}</strong>.
+                                        Only type a name above to override it (e.g. a special/debugging session).
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Owner Row -->
+                            <div class="form-group row">
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Owner</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <h4 class="col-12 text-sm-left">{{ booking.owner.name }}</h4>
+                                </div>
+                            </div>
+
+                            <!-- Operator Row -->
+                            <div class="form-group row">
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Staff</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <label class="col-12 col-sm-3 col-form-label text-sm-left">{{ booking.operator.name }}</label>
+                                </div>
+                            </div>
+
+                            <!-- Microscope Row -->
+                            <div class="form-group row">
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Microscope</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <div class="row align-items-center justify-content-start">
+                                    <div class="col">
+                                        <img src="{{ url_for('images.static', filename=booking.resource.image) }}" alt="{{ booking.resource.name }}" width="48" style="margin-right: 0;">
+                                    </div>
+                                    <div class="col-10 text-sm-left">
+                                        <h5>{{ booking.resource.name }}</h5>
+                                    </div>
+                                </div>
+
+                                </div>
+                            </div>
+
+                            <!-- Project id -->
+                            <div class="form-group row">
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Project ID</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <select id="session-projectid-select" class="selectpicker show-tick" data-live-search="true" data-key="project_id">
+                                        <option value="0">Not set</option>
+                                        {% for p in projects %}
+                                            {% set selected = 'selected' if p.id == booking.project.id else '' %}
+                                            <option {{ selected }} value="{{ p.id }}">{{ p.title }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {{ macros.session_dialog_row('RAW data folder', 'raw_folder', '', 'Provide RAW data folder') }}
+                            {{ macros.session_dialog_row('OTF folder', 'otf_folder', '', 'If OTF folder is not provided it will be created') }}
+
+                        </div>
+
+                        <div class="col-5 p-0 m-0">
+                            {{ macros.session_dialog_row('Voltage (kV)', 'acq_voltage', acquisition['voltage'], '') }}
+                            {{ macros.session_dialog_row('Magnification', 'acq_magnification', acquisition['magnification'], '') }}
+                            {{ macros.session_dialog_row('Pixel Size (A/px)', 'acq_pixel_size', acquisition['pixel_size'], '') }}
+                            {{ macros.session_dialog_row('CS', 'acq_cs', acquisition['cs'], '') }}
+                            {{ macros.session_dialog_row('Dose (per frame)', 'acq_dose', acquisition['dose'], '') }}
+                        </div>
+
+                    </div>
+
+                    </form>
+                    </div>
+
+
+                 {% if session_extra_form %}
+                     <div class="tab-pane fade" id="session-extra" role="tabpanel" aria-labelledby="session-extra-tab">
+                        <form id="session_extra_form">
+                            {% set definition = session_extra_form.definition %}
+                            {% include "dynamic_form.html" %}
+                        </form>
+                    </div>
+                {%  endif %}
+
+                </div>
+            </div>
+    </div>
+    <!-- end Booking Form -->
+
+</div>
+    <!-- End of Modal body -->
+
+    <!-- Modal footer -->
+    <div class="modal-footer">
+        <button type="button" id="booking-btn-cancel"  class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" id="booking-btn-ok" class="btn btn-outline-dark" onclick="onCreateClick()">Create</button>
+    </div>
+    <!-- End of Modal footer -->
+
+  </div> <!-- End of modal-content -->
+</div> <!-- end of modal-dialog -->
+
+<!-- javascript  -->
+<script>
+    $('select').selectpicker();
+
+    function onCreateClick(){
+        var formValues = getFormAsJson('session-form');
+        var attrs = {
+            booking_id: parseInt(document.getElementById('booking-id').value),
+            acquisition: {
+                voltage: formValues.acq_voltage,
+                magnification: formValues.acq_magnification,
+                pixel_size: formValues.acq_pixel_size,
+                dose: formValues.acq_dose,
+                cs: formValues.acq_cs
+            }
+        }
+
+        // SLL-specific naming (README.rst, section 7): the Session Name
+        // field is OPTIONAL. Leave it blank for the normal case and the
+        // server auto-assigns the next cem/dbb/fac/ext code for this
+        // booking's application (DataManager.get_new_session_info() /
+        // create_session()). Only type a name for a special/debugging
+        // session that needs an explicit name - in that case it's used
+        // exactly as typed, with NO prefix added (unlike core's default
+        // template, which always prepended a date/resource prefix that
+        // never matched any real SLL session name).
+        let sessionName = formValues.session_name;
+
+        if (nonEmpty(sessionName)) {
+            var regex = /^[a-zA-Z0-9-_]{2,64}$/;
+            if (!regex.test(sessionName)) {
+                showError("Provide a valid <strong>Session Name</strong>.<br>" +
+                    "<p>It must have from 2 to 32 digits, containing letters, numbers, slash or underscore.</p>");
+                return;
+            }
+
+            attrs.name = sessionName;
+            attrs.extra = {
+                raw: { path: formValues.raw_folder },
+                otf: { path: formValues.otf_folder },
+                project_id: formValues.project_id,
+                data: getFormAsJson('session_extra_form', true)
+            }
+            attrs.tasks = []
+        }
+        // else: attrs.name is intentionally left unset, so the server
+        // assigns the next SLL code automatically.
+
+        var ajaxContent = $.ajax({
+            url: "{{ url_for('api.create_session') }}",
+            type: "POST",
+            contentType: 'application/json; charset=utf-8',
+            data: JSON.stringify({attrs: attrs}),
+            dataType: "json"
+        });
+
+        ajaxContent.done(function(jsonResponse) {
+            //alert(JSON.stringify(jsonResponse, null, 4));
+
+            if ('error' in jsonResponse)
+                showError(jsonResponse['error']);
+            else {
+                //window.location.reload();
+                window.location = "{{ url_for_content('session_default') }}" + "&session_id=" + jsonResponse.session.id;
+            }
+        });
+
+        ajaxContent.fail(function(jqXHR, textStatus) {
+            alert( "Request failed: " + textStatus );
+        });
+    }
+
+    (function(window, document, $, undefined) {
+        // Initialization code goes here
+    })(window, document, window.jQuery);
+
+</script>

@@ -103,11 +103,27 @@ Status / open items
 2. Converting legacy ``sessions_config`` to ``config:sessions``
 =================================================================
 
-``sessions_config`` is a pre-rename form (no ``config:`` prefix) that
-current core no longer reads - ``DataManager.get_config('sessions')`` only
-ever looks up a form literally named ``config:sessions``. It's dead data
-today, but it has two sections worth mining before it's archived, since
-nothing else in the instance currently holds this information:
+``sessions_config`` is a pre-rename form (no ``config:`` prefix).
+``DataManager.get_config('sessions')`` only ever looks up
+``config:sessions`` - but that's not the whole story: core reads
+``sessions_config`` directly, by literal form name, from several other
+``DataManager`` methods (``get_session_counter``, ``update_session_counter``,
+``get_session_cameras``, ``get_session_folders``,
+``get_session_data_deletion`` - see ``emhub/data/data_manager.py``).
+
+.. warning::
+
+   **Correction (2026-09-22):** this section originally called the
+   ``counters`` sub-section below "dead data...likely safe to delete".
+   That was wrong - see section 7, which investigated where session
+   unique codes (``cem00734_00044``, ``dbb01967``, ...) come from and
+   found that ``counters`` is live, load-bearing state read and written
+   on every session creation. Do **not** delete ``sessions_config`` (or
+   its ``counters`` section) - see section 7 for what actually breaks if
+   you do. The ``cameras`` section below is still just informational, as
+   originally described.
+
+It has two sections worth knowing about:
 
 .. code-block:: json
 
@@ -137,24 +153,17 @@ correct pixel_size/dose defaults, and optionally extend each microscope's
 ``camera`` enum field using these choices, so operators can record which
 detector was used per session rather than assuming a fixed one.
 
-**``counters`` section** - keys look like ``cem#####``, which match
-``applications.code`` in the live DB (confirmed: ``CEM00258``, ``CEM00263``,
-etc. are real application codes, 147 total). These are very likely a manual
-pre-``resource_allocation`` tally (days/sessions used per application) from
-before the DB tracked this natively. They do **not** line up with the
-current ``applications.resource_allocation`` JSON (``{"quota": {"krios": 0,
-"talos": 0}, "noslot": []}`` for every application checked) - so this isn't
-a 1:1 replacement, and the counters likely predate ``resource_allocation``
-entirely. Before archiving:
-
-- Cross-check a few counter values against actual ``bookings``/``sessions``
-  rows for the same application/PI to see if they roughly match a
-  historical session or booking count.
-- If they do, they're safely redundant now (the DB can compute the same
-  number live) and ``sessions_config`` can be deleted.
-- If they don't match anything, export the raw JSON to a file before
-  deleting the form, in case it records something not tracked elsewhere
-  (e.g. an old invoicing tally).
+**``counters`` section** - keys look like ``cem#####`` (also ``dbb``,
+``fac``, ``ext`` - see section 7), matching ``applications.code`` in the
+live DB lowercased. **This is not historical/redundant data** - it's the
+live running counter ``DataManager.get_new_session_info()`` reads and
+increments every time a new Session is created without an explicit name,
+to generate that session's unique code. As of 2026-09-22 it has 93
+entries and is updated on essentially every new session. See section 7
+for the full mechanism and why the earlier guidance here (cross-check
+against bookings, then archive/delete) was wrong - deleting it would
+reset every counter to 1 and break new-session creation for every
+application that already has sessions.
 
 Suggested migration steps
 --------------------------
@@ -166,9 +175,12 @@ Suggested migration steps
    ``scripts/20260921_fix_sll_missing_configs.py``'s ``CONFIG_SESSIONS``
    constant and re-run it - the script updates in place if the form
    already exists).
-#. Verify the ``counters`` data isn't load-bearing (see above), then it's
-   safe to leave ``sessions_config`` alone (harmless, unread) or delete it
-   via the admin Raw Forms page.
+#. Do **not** delete ``sessions_config`` or its ``counters`` section -
+   see section 7. It's actively read by session creation, not unread
+   legacy data. The ``cameras`` section can be archived/removed
+   independently once its values are folded into ``config:sessions``
+   (or a per-microscope ``entry_form:*_extra``), since nothing reads
+   ``cameras`` programmatically today.
 
 3. ``config:permissions`` - rules for allowing booking on other instrument types
 ====================================================================================
@@ -514,6 +526,224 @@ Not changed / still worth a look
   connection - worth a manual smoke test once there's network access to
   ``https://cryoem.scilifelab.se``.
 
+7. How session unique codes (``cem00734_00044``, ``dbb01967``, ...) are assigned (found 2026-09-22)
+========================================================================================================
+
+Summary
+-------
+
+Live SLL data (2,822 sessions, checked 2026-09-22): every session name
+falls into one of four prefixes, generated from the session's booking's
+linked ``Application.code``, with **zero exceptions** (no duplicates, no
+other prefixes, no ``int`` prefix):
+
+.. list-table::
+   :header-rows: 1
+
+   * - Prefix
+     - Count
+     - Source
+   * - ``dbb``
+     - 1,466
+     - the internal ``DBB`` application (``code='DBB'``)
+   * - ``cem``
+     - 1,029
+     - a ``CEM#####`` application code, lowercased
+   * - ``fac``
+     - 177
+     - booking has **no** linked application (facility-internal)
+   * - ``ext``
+     - 150
+     - an ``EXT#####`` application code, lowercased
+
+(No ``int`` prefix exists in this instance's data today - if you had that
+in mind from another facility/example, it isn't one of the patterns SLL
+currently uses; nothing hardcodes ``int`` anywhere in core either. It
+would appear automatically the same way ``ext``/``cem`` do, the day an
+application with a code starting ``INT`` is created.)
+
+Core logic (``emhub/data/data_manager.py``)
+-----------------------------------------------
+
+``DataManager.get_new_session_info(booking_id)`` (has its own
+``# FIXME: This is specific to SLL and needs cleanup/refactoring``
+comment already in core) generates the code:
+
+.. code-block:: python
+
+    def get_new_session_info(self, booking_id):
+        b = self.get_bookings(condition="id=%s" % booking_id)[0]
+        a = b.application
+        code = 'fac' if a is None else a.code.lower()
+        sep = '' if len(code) == 3 else '_'
+        c = self.get_session_counter(code)
+        return {'code': code, 'counter': c,
+                'name': '%s%s%05d' % (code, sep, c)}
+
+- ``code`` = the booking's application code lowercased (``CEM00734`` ->
+  ``cem00734``, ``DBB`` -> ``dbb``, ``EXT00001`` -> ``ext00001``), or the
+  literal string ``'fac'`` if the booking has no linked application at
+  all (not derived from any application - just a hardcoded fallback).
+- ``sep`` is empty only when ``code`` is exactly 3 characters - which in
+  practice only happens for ``fac`` and ``dbb`` (``DBB`` is a 3-letter
+  application code). Every ``CEM``/``EXT`` code is longer than 3 chars,
+  so those always get an underscore before the counter.
+- ``c`` / the counter comes from ``get_session_counter(code)``, which
+  reads it from ``sessions_config``'s ``counters`` section (see section
+  2, now corrected) - ``self.get_form_by(name='sessions_config')``,
+  section ``label == 'counters'``, ``{'label': code, 'value': N}``. If
+  the form or that code's entry is missing, it defaults to ``1``.
+- The name is formatted ``'%s%s%05d'`` - code, separator, 5-digit
+  zero-padded counter. This exactly matches ``cem00734_00044``,
+  ``dbb01967``, ``fac00458``, ``ext00001_00007``.
+
+This only runs when ``create_session()`` is called **without** an
+explicit ``name`` in ``attrs``:
+
+.. code-block:: python
+
+    # DataManager.create_session()
+    if 'name' not in attrs:
+        session_info = self.get_new_session_info(b.id)
+        attrs['name'] = session_info['name']
+    else:
+        session_info = None
+    s = self.get_session_by(name=attrs['name'])
+    if s is not None:
+        raise Exception("Session name already exist, choose a different one.")
+    ...
+    session = self.__create_item(self.Session, **attrs)
+    if session_info:
+        self.update_session_counter(session_info['code'], session_info['counter'] + 1)
+
+Uniqueness is enforced at the application level (a lookup + raise), not
+by a DB constraint - ``Session.name`` is ``String(256), nullable=False``
+with no ``unique=True``. It happens to hold in practice (0 duplicates in
+2,822 rows) only because the counter is always incremented right after a
+successful create.
+
+There's a second piece: ``DataManager.update_session()`` re-syncs the
+counter forward if a session's name is edited (or created with an
+explicit name) to something matching the auto-generated pattern -
+``Session.is_code_counted`` (``emhub/data/data_models.py``) checks
+``re.match("[a-z]{3}[0-9]{5}", name)``. If the edited name's counter is
+higher than what's stored, the stored counter is bumped to match + 1 -
+but only ever forward, never back. This is what would keep things
+consistent if someone manually created/renamed a session with a
+higher-numbered code than the auto-generator would have picked.
+
+Fixed (2026-09-22): the "New Session" dialog now uses this path on SLL
+---------------------------------------------------------------------------
+
+``emhub/templates/create_session_form.html`` (core) is the browser
+dialog behind the "New Session" button (the
+one whose ``content_id`` routing we fixed in section 1/the ``KeyError:
+content_id`` bug). Its JS:
+
+.. code-block:: javascript
+
+    let sessionName = formValues.session_name;
+    if (nonEmpty(sessionName)) {
+        attrs.name = sessionName;
+        ...
+    }
+    var valid_name = nonEmpty(attrs.name) && regex.test(attrs.name);
+    if (!valid_name) {
+        showError("Provide a valid <strong>Session Name</strong>...");
+        return;
+    }
+    // Add unique prefix to avoid session name clashes
+    attrs.name = "{{ session_name_prefix }}" + attrs.name;
+
+As written, this **always** requires the operator to type a name (the
+``showError``/``return`` fires whenever it's empty - there's no path
+that submits without one), and always prepends
+``session_name_prefix`` (``f'{dateStr}{resource.name}:'``, e.g.
+``"20260922Solna Krios α:"``) client-side before calling
+``/api/create_session``. That means ``attrs.name`` is **always** present
+in the request, so server-side ``get_new_session_info()`` auto-naming
+(above) never triggers through this dialog - and the result would
+contain a colon, in a completely different format from every one of the
+2,822 existing SLL session names (confirmed: 0 of them contain a colon).
+
+This dialog's ``content_id`` (``create_session_form``, wired via
+``config:sessions.create_session``) was **missing/broken on this
+instance until this repo's 2026-09-21 fix** (section 1) - so none of the
+existing session data could have come from this exact current code path
+on SLL. It most likely came from an older version of this template (git
+history shows the ``session_name_prefix`` prepend and the mandatory-name
+JS gate are relatively recent core commits, Jul/Oct 2025) and/or from
+direct API/script usage that omits ``name`` on purpose. Either way: now
+that the dialog is reachable again, using it as-is on SLL will produce
+names that break the ``cem``/``dbb``/``fac``/``ext`` convention this
+facility's reporting and invoicing (section on ``config:permissions``
+tag coverage, invoice periods) implicitly relies on.
+
+Fix
+---
+
+Went with the first option (leave manual-name as an opt-in override
+rather than changing what ``session_name_prefix`` means), via the same
+override pattern already used for ``dashboard_right.html``: core's
+``create_session_form.html`` and core's ``create_session_form`` content
+function (``emhub/data/content/dc_sessions.py``) are both left untouched
+- this repo now ships its own versions of both, which win via the
+existing override mechanisms (``extra/templates`` searched before core's
+templates; ``register_content(dc)`` here runs after core's, so
+re-registering ``create_session_form`` with ``@dc.content`` replaces
+core's entry in ``dc._contentDict``).
+
+- ``data_content.py``: added a ``create_session_form`` override,
+  identical to core's version, plus one addition -
+  ``session_info = dm.get_new_session_info(booking_id)``, exposed to the
+  template as ``suggested_session_name``. This is a pure read (the
+  counter is only consumed/incremented inside an actual
+  ``create_session()`` call), so it's safe to compute on every render,
+  even if the operator opens the dialog without submitting.
+- ``templates/create_session_form.html`` (new, copied from core):
+  identical to core except the Session Name field -
+
+  - Now shows a hint below it: "Next auto-assigned code:
+    **<suggested_session_name>**. Only type a name above to override it
+    (e.g. a special/debugging session)." (2026-09-22 follow-ups: the
+    first version of this hint used a negative ``margin-top`` to tuck it
+    under the input, which instead overlapped it and was hard to read -
+    replaced with a normal, non-negative ``form-group row`` (empty
+    ``col-3`` spacer + ``col-8``) so it sits cleanly below the input,
+    aligned with it, same as every other field in this form. Also
+    dropped the ``<small>`` tag, which forced an 80%-scaled font on top
+    of the already-small hint text - it's a plain ``text-muted`` div at
+    normal (``1rem``) size now, still visually secondary via color
+    alone rather than size.)
+  - The JS no longer requires a name. Left blank, ``attrs.name`` is
+    never set in the request, so ``DataManager.create_session()``'s
+    existing ``if 'name' not in attrs:`` branch auto-generates it via
+    ``get_new_session_info()`` - no core change needed, this path
+    already existed and worked, it just had no way to be reached from
+    SLL's UI.
+  - Typing a name still validates it with the same regex as before, but
+    no longer gets any prefix prepended - it's sent to the server
+    exactly as typed. This preserves the existing "special/debugging
+    session" behavior (RAW/OTF path overrides, ``tasks: []`` to skip
+    scheduling a transfer task) unchanged, tied to the same "did the
+    operator type a name" condition as core's original template - only
+    the requirement and the prefix were removed.
+
+Verified: ``py_compile`` on ``data_content.py``, a ``jinja2.Environment().parse()``
+on the new template, and confirmed ``config:sessions.create_session``
+already maps all 5 microscopes to ``content_id: create_session_form``
+(set by the 2026-09-21 fix script), so no config change was needed for
+the override to take effect.
+
+Not verified: an actual end-to-end session creation against the live
+server (this is an offline dev checkout - see the Checklist). In
+particular, whether ``project_id``/extra-form data should still be
+saved when the name is left blank (today, exactly like core's original
+code, that ``attrs.extra`` block is only sent when a name is typed) is
+worth confirming with a real "leave it blank" submission before relying
+on this for production sessions - flagged in the Checklist rather than
+guessed at here.
+
 Checklist
 =========
 
@@ -539,3 +769,15 @@ Checklist
 - [ ] Smoke-test "Import Users from Portal" and "Import Applications from
       Portal" against a live Portal connection (not possible from this
       offline dev checkout)
+- [x] Fix the "New Session" dialog to use SLL's auto-numbering
+      (cem/dbb/fac/ext + counter) instead of requiring a typed name with
+      a date/resource prefix that matched no existing SLL session name
+      (see section 7)
+- [ ] Smoke-test the "New Session" dialog end-to-end against a live
+      server: confirm a blank-name submission gets the suggested
+      auto-assigned code, and decide whether project_id/extra-form data
+      should be saved even when the name is left blank (today it isn't,
+      matching core's original - never-reachable - behavior)
+- [x] Correct section 2's guidance on ``sessions_config``'s ``counters``
+      section - it is live, load-bearing state (session code
+      auto-numbering), not safe to archive/delete as originally written

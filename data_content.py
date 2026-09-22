@@ -37,12 +37,23 @@ content_id values the templates request), and they referenced an
 undefined `self` (these are plain functions nested in register_content(),
 not methods) - so this whole "Import Users / Import Applications from
 Portal" admin feature was unreachable before this fix.
+
+Also overrides core's `create_session_form` content function (see
+README.rst, section 7): register_content() runs after core's own content
+registration (core's dc_sessions.register_content(dc) happens at import
+time via emhub/data/content/__init__.py; this module is only loaded and
+called later, from create_app()), so re-registering the same function
+name here with @dc.content replaces core's version in dc._contentDict -
+same mechanism the paired create_session_form.html template override in
+this repo's templates/ relies on (extra/templates is searched before
+core's templates, see emhub/__init__.py).
 """
 import os
 import datetime as dt
 
 import flask
 
+from emtools.utils import Pretty
 from emhub.utils import datetime_from_isoformat
 
 
@@ -221,3 +232,46 @@ def register_content(dc):
         return {'checks': results,
                 'since': since
                 }
+
+    @dc.content
+    def create_session_form(**kwargs):
+        """ Override of core's create_session_form
+        (emhub/data/content/dc_sessions.py). Identical to core except it
+        also computes 'suggested_session_name' - a read-only preview of
+        the SLL auto-numbered code (cem/dbb/fac/ext + counter, see
+        DataManager.get_new_session_info(), README.rst section 7) that
+        will be assigned if the operator leaves the Session Name field
+        blank. This is a pure read (get_new_session_info() does not
+        consume/increment the counter - only an actual
+        DataManager.create_session() call does), so it's safe to compute
+        on every render of this form, including if the operator opens it
+        more than once without creating a session.
+        """
+        dm = dc.app.dm
+        user = dc.app.user
+        booking_id = int(kwargs['booking_id'])
+        b = dm.get_booking_by(id=booking_id)
+        can_edit = b.project and user.can_edit_project(b.project)
+
+        if not (user.is_manager or user.same_pi(b.owner) or can_edit):
+            raise Exception("You can not create Sessions for this Booking. "
+                            "Only members of the same lab can do it.")
+
+        sconfig = dm.get_config('sessions')
+
+        # load default acquisition params for the given microscope
+        micName = b.resource.name
+        acq = sconfig['acquisition'][micName]
+        dateStr = Pretty.date(b.start).replace('-', '')
+
+        session_info = dm.get_new_session_info(booking_id)
+
+        data = {
+            'booking': b,
+            'acquisition': acq,
+            'session_name_prefix': f'{dateStr}{b.resource.name}:',
+            'suggested_session_name': session_info['name'],
+            'session_extra_form': dm.get_session_form(b.resource.name)
+        }
+        data.update(dc.get_user_projects(b.owner, status='active'))
+        return data
