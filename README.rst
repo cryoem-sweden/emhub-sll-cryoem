@@ -153,7 +153,8 @@ correct pixel_size/dose defaults, and optionally extend each microscope's
 ``camera`` enum field using these choices, so operators can record which
 detector was used per session rather than assuming a fixed one.
 
-**Update (2026-09-22, Gerrit)**
+Update (2026-09-22, Gerrit)
+----------------------------
 
 Filled in real acquisition values (voltage, magnification, pixel
 size, dose, cs) for each microscope in
@@ -163,13 +164,12 @@ Got the values from Mathieu.
 Skipped the optional camera-selection field suggested above, not
 needed anymore. This info should be extracted from the microscope-generated
 metadata in the future.
-
 One more thing found while checking if the old camera list was really
 unused: The camera list itself and the
 ``get_session_cameras()`` function are genuinely dead, not used
 anywhere in the code. But 109 real sessions do have a camera value
 saved (K2, K3, Falcon3, Ceta, Ceta-D) - just under the wrong key,
- the word "undefined" instead of "camera". Looks like an old
+the word "undefined" instead of "camera". Looks like an old
 bug where a form field wasn't set up correctly. All 109 sessions are
 from Feb-April 2022, so it was used for two months then never
 again. But that does not seem important for now.
