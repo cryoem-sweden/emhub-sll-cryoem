@@ -148,11 +148,11 @@ CONFIG_SESSIONS = {
     # Empty dicts avoid the KeyError; fill in real values per microscope
     # (voltage, magnification, pixel_size, dose, cs) when you have them.
     "acquisition": {
-        "Solna Krios α": {},
-        "Solna Krios β": {},
-        "Talos": {},
-        "Umeå Krios": {},
-        "Umeå Glacios": {}
+        "Solna Krios α": {"voltage": 300, "magnification": 130000, "pixel_size": 0.65,  "dose": 1.0, "cs": 2.7},
+        "Solna Krios β": {"voltage": 300, "magnification": 130000, "pixel_size": 0.648, "dose": 1.0, "cs": 2.7},
+        "Talos":         {"voltage": 200, "magnification": 100000, "pixel_size": 1.2,   "dose": 1.0, "cs": 2.7},
+        "Umeå Krios":    {"voltage": 300, "magnification": 130000, "pixel_size": 0.65,  "dose": 1.0, "cs": 2.7},
+        "Umeå Glacios":  {"voltage": 200, "magnification": 100000, "pixel_size": 1.2,   "dose": 1.0, "cs": 2.7}
     }
 }
 
