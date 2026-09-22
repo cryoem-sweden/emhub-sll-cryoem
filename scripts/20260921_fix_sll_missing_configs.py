@@ -57,6 +57,17 @@ config:bookings to attach the existing "experiment" form to each
 microscope so the "Experiment" dialog (currently unusable - "There is no
 Experiment form defined for this Instrument") works.
 
+(2026-09-22 update) Also merges a config:sessions.create_session mapping
+in, pointing each microscope at the "create_session_form" content used by
+DataManager.get_create_session_template(). Without it, the "New Session"
+button on the dashboard (templates/dashboard_right.html) rendered with no
+3rd JS argument, so clicking it called createSession(bookingId,
+totalSessions) with create_session_func == undefined, which made the POST
+to /get_content arrive with no content_id at all ->
+KeyError: 'content_id' in emhub/__init__.py's get_content(). This update
+is a MERGE, not a replace: it only sets the create_session key and leaves
+any acquisition/groups values you've already filled in untouched.
+
 IMPORTANT - things this script deliberately does NOT invent:
   * config:sessions.acquisition is created with one EMPTY dict per
     microscope (Solna Krios alpha/beta, Talos, Umea Krios, Umea Glacios).
@@ -131,8 +142,8 @@ CONFIG_SESSIONS = {
     # Used (bare access) by DataManager.get_user_group():
     #   user_groups = self.get_config('sessions')['groups']
     "groups": {},
-    # Used (bare access) by dc_sessions.py/session_content() when creating
-    # a Session from a Booking:
+    # Used (bare access) by dc_sessions.py/create_session_form() when
+    # creating a Session from a Booking:
     #   acq = sconfig['acquisition'][micName]
     # Empty dicts avoid the KeyError; fill in real values per microscope
     # (voltage, magnification, pixel_size, dose, cs) when you have them.
@@ -143,6 +154,22 @@ CONFIG_SESSIONS = {
         "Umeå Krios": {},
         "Umeå Glacios": {}
     }
+}
+
+# Used (bare access) by DataManager.get_create_session_template(), which
+# feeds resource_create_session in dc_base.py/dashboard() and is what the
+# "New Session" button's 3rd JS argument comes from. "create_session_form"
+# is the existing @dc.content function/template (dc_sessions.py) that
+# actually builds the session-creation dialog.
+SESSIONS_CREATE_SESSION = {
+    name: {"template": "create_session_form"}
+    for name in [
+        "Solna Krios α",
+        "Solna Krios β",
+        "Talos",
+        "Umeå Krios",
+        "Umeå Glacios",
+    ]
 }
 
 CONFIG_REPORTS = {
@@ -164,11 +191,12 @@ CONFIG_RESOURCES = {
 
 NEW_CONFIGS = {
     "config:permissions": CONFIG_PERMISSIONS,
-    "config:sessions": CONFIG_SESSIONS,
     "config:reports": CONFIG_REPORTS,
     "config:users": CONFIG_USERS,
     "config:resources": CONFIG_RESOURCES,
 }
+# config:sessions is handled separately by update_sessions_create_session()
+# below (a merge, not a blind replace like the ones above).
 
 # ---------------------------------------------------------------------------
 # Existing config forms that need extra data
@@ -188,6 +216,30 @@ def log(message):
     print(f"{Pretty.now()}: {message}", flush=True)
 
 
+def update_sessions_create_session(dc, forms):
+    """ Merge SESSIONS_CREATE_SESSION into config:sessions.create_session
+    without touching any other key (in particular 'acquisition', in case
+    real per-microscope values have already been filled in by hand). """
+    log(Color.green(">>> Merging config:sessions.create_session..."))
+    form = forms.get('config:sessions')
+
+    if form is None:
+        log(Color.bold("     - config:sessions doesn't exist yet, creating it"))
+        definition = dict(CONFIG_SESSIONS)
+        definition['create_session'] = SESSIONS_CREATE_SESSION
+        formData = {'name': 'config:sessions', 'definition': definition}
+        dc.request('create_form', jsonData={'attrs': formData})
+        return
+
+    definition = dict(form['definition'])
+    definition.setdefault('groups', {})
+    definition.setdefault('acquisition', dict(CONFIG_SESSIONS['acquisition']))
+    definition['create_session'] = SESSIONS_CREATE_SESSION
+    form['definition'] = definition
+    dc.request('update_form', jsonData={'attrs': form})
+    log(f"     Done. create_session -> {json.dumps(SESSIONS_CREATE_SESSION)}")
+
+
 def update_configs():
     with open_client() as dc:
         forms = {f['name']: f for f in dc.request('get_forms', jsonData=None).json()}
@@ -203,6 +255,8 @@ def update_configs():
                 log(Color.bold(f"     - Creating {name}..."))
                 formData = {'name': name, 'definition': definition}
                 dc.request('create_form', jsonData={'attrs': formData}).json()
+
+        update_sessions_create_session(dc, forms)
 
         log(Color.green(">>> Updating config:bookings with experiment_forms..."))
         bookings_form = forms.get('config:bookings')

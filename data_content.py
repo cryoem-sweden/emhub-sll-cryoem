@@ -26,20 +26,71 @@
 # *
 # **************************************************************************
 """
-Register content functions related to Sessions
+Register content functions related to the SciLifeLab Order Portal
+integration (app.sll_pm, see portal.py / app_setup.py in this repo).
+
+Moved here from core's emhub/data/content/dc_base.py on 2026-09-22 (see
+README.rst, section 6). Fixed at the same time: these three content
+functions were defined but never registered with @dc.content (dc.content
+stores by function name, and the names here didn't even match the
+content_id values the templates request), and they referenced an
+undefined `self` (these are plain functions nested in register_content(),
+not methods) - so this whole "Import Users / Import Applications from
+Portal" admin feature was unreachable before this fix.
 """
 import os
+import datetime as dt
+
+import flask
+
+from emhub.utils import datetime_from_isoformat
 
 
 def register_content(dc):
-    def get_portal_users_list(**kwargs):
-        dm = self.app.dm
+
+    def _get_users_from_portal(status=None):
+        """ Retrieve users from Portal with a given status.
+        If status is None, all will be retrieved.
+        """
+        dm = dc.app.dm
+        users = []
+
+        for pu in dc.app.sll_pm.fetchAccountsJson():
+            user = dm.get_user_by(email=pu['email'])
+
+            if user is None:
+                invoiceRef = pu['invoice_ref']
+
+                if pu['status'] == 'enabled':
+                    pu['pi_user'] = None
+
+                    if not pu['pi']:
+                        pi = dm.get_user_by(email=invoiceRef)
+                        if pi is None:
+                            pu['status'] = 'error: Missing PI'
+                        else:
+                            pu['status'] = 'ready: user'
+                            pu['pi_user'] = pi
+                    else:
+                        if invoiceRef.strip():
+                            pu['status'] = 'ready: pi'
+                        else:
+                            pu['status'] = 'error: Missing Invoice Reference'
+
+                    if status is None or pu['status'].startswith(status):
+                        users.append(pu)
+
+        return users
+
+    @dc.content
+    def portal_users_list(**kwargs):
+        dm = dc.app.dm
         do_import = 'import' in kwargs
         imported = []
         failed = []
 
         if do_import:
-            users = self._get_users_from_portal(status='ready')
+            users = _get_users_from_portal(status='ready')
             for u in users:
                 roles = ['user', 'pi'] if u['pi'] else ['user']
                 pi_id = None if u['pi'] else u['pi_user'].id
@@ -57,8 +108,8 @@ def register_content(dc):
                     )
                     imported.append(u)
 
-                    if self.app.mm:
-                        self.app.mm.send_mail(
+                    if dc.app.mm:
+                        dc.app.mm.send_mail(
                             [user.email],
                             "emhub: New account imported",
                             flask.render_template('email/account_created.txt',
@@ -70,7 +121,7 @@ def register_content(dc):
         else:
             status = kwargs.get('status', None)
 
-        users = self._get_users_from_portal(status)
+        users = _get_users_from_portal(status)
 
         return {'portal_users': users,
                 'status': status,
@@ -79,46 +130,47 @@ def register_content(dc):
                 'users_failed': failed
                 }
 
-    def get_portal_import_application(**kwargs):
+    @dc.content
+    def portal_import_application(**kwargs):
         # Date since the created orders in the portal will be considered
         sinceArg = kwargs.get('since', None)
 
         if sinceArg:
             since = datetime_from_isoformat(sinceArg)
         else:
-            since = self.app.dm.now() - dt.timedelta(days=183)  # 6 months
+            since = dc.app.dm.now() - dt.timedelta(days=183)  # 6 months
 
         result = {'since': since}
 
-        ordersJson = self.app.sll_pm.fetchOrdersJson()
+        ordersJson = dc.app.sll_pm.fetchOrdersJson()
 
         def _filter(o):
             s = o['status']
             code = o['identifier'].upper()
-            app = self.app.dm.get_application_by(code=code)
-            o['app'] = app.id if app else 'None'
+            application = dc.app.dm.get_application_by(code=code)
+            o['app'] = application.id if application else 'None'
             modified = datetime_from_isoformat(o['modified'])
 
             return ((s == 'accepted' or s == 'processing')
-                    and app is None and modified >= since)
+                    and application is None and modified >= since)
 
         result['orders'] = [o for o in ordersJson if _filter(o)]
 
         return result
 
-    def get_applications_check(**kwargs):
-
-        dm = self.app.dm
+    @dc.content
+    def applications_check(**kwargs):
+        dm = dc.app.dm
 
         sinceArg = kwargs.get('since', None)
 
         if sinceArg:
             since = datetime_from_isoformat(sinceArg)
         else:
-            since = self.app.dm.now() - dt.timedelta(days=183)  # 6 months
+            since = dc.app.dm.now() - dt.timedelta(days=183)  # 6 months
         results = {}
 
-        accountsJson = self.app.sll_pm.fetchAccountsJson()
+        accountsJson = dc.app.sll_pm.fetchAccountsJson()
         usersDict = {a['email'].lower(): a for a in accountsJson}
 
         for application in dm.get_applications():
@@ -129,7 +181,7 @@ def register_content(dc):
                 continue
 
             orderCode = application.code.upper()
-            orderJson = self.app.sll_pm.fetchOrderDetailsJson(orderCode)
+            orderJson = dc.app.sll_pm.fetchOrderDetailsJson(orderCode)
 
             if orderJson is None:
                 errors.append('Invalid application ID %s' % orderCode)
@@ -169,4 +221,3 @@ def register_content(dc):
         return {'checks': results,
                 'since': since
                 }
-
