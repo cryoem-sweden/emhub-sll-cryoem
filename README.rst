@@ -771,7 +771,7 @@ Checklist
 - [x] Create missing ``config:*`` forms (script written and ready to run)
 - [ ] Run ``scripts/20260921_fix_sll_missing_configs.py`` against the live
       SLL server
-- [ ] Fill in real ``config:sessions.acquisition`` values per microscope
+- [x] Fill in real ``config:sessions.acquisition`` values per microscope
 - [ ] Decide fate of ``sessions_config`` (archive vs delete) after
       verifying the ``counters`` section against real booking/session
       history
