@@ -327,6 +327,39 @@ entry). Confirm with Jose whether that's intentional per-instrument, or
 whether they should get a generic tag (Option A) or their own entry
 (Option B).
 
+Update (2026-09-23, Gerrit)
+----------------------------
+
+Updated the tags in SLL Live instance (emhub.cryoem.se) via GUI.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Resource
+     - Old tags
+     - New tags
+     - Covered by
+   * - Chamaleon
+     - ``Cham``
+     - ``instrument solna``
+     - ``instrument``
+   * - Umeå Aquilos 2
+     - ``Umeå cryo-FIB-SEM``
+     - *pending* - waiting for Umeå decision
+     - *pending*
+   * - Mass Photometry
+     - ``Refeyn``
+     - ``instrument solna``
+     - ``instrument``
+   * - Rapid Support Data Processing
+     - *(empty)*
+     - ``service solna``
+     - ``service``
+   * - Primo
+     - *(empty)*
+     - ``instrument solna``
+     - ``instrument``
+
 4. Invoice Periods page crash: PortalManager unreachable locally (found 2026-09-22)
 ========================================================================================
 
