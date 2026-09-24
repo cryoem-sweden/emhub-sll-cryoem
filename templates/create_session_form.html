@@ -1,20 +1,19 @@
 {#
     SLL override of core's emhub/templates/create_session_form.html.
 
-    Moved here 2026-09-22 (see README.rst, section 7). SLL session names
-    follow a site-specific auto-numbering convention (cem00734_00044,
-    dbb01967, fac00458, ext00001_00007 - see
-    DataManager.get_new_session_info() in core), generated server-side
-    whenever no explicit name is submitted. Core's original template
-    always required a typed name here and prepended a date/resource
-    prefix (session_name_prefix) that never matched any of this
-    instance's 2,822 existing session names - so the only change from
-    core is the Session Name field: it's now
-    optional (blank = auto-assigned by the server) and typing one no
-    longer gets a prefix silently added to it. Everything else (RAW/OTF
-    folder, Project ID, Acquisition fields, Extra form tab) is unchanged
-    from core.
+    Based on the 2026-09-22 version (README.rst, section 7), updated
+    2026-09-23 (Gerrit) after checking against the SLL 0.6.x form:
+    - Session name is always auto-generated (dbb/cem/fac/ext + counter,
+      DataManager.get_new_session_info()) and only displayed, as in 0.6.x.
+      Facility decision: no manual name override.
+    - Removed Project ID (comes from the booking), RAW/OTF folder fields
+      and the tab bar; added Creator row, "Staff" is "Operator" again.
+    - Sends check_raw=false: without it, create_session() fails with
+      KeyError 'raw' when no extra is sent (this also affected the
+      blank-name path of the previous version).
+    - No session tasks are sent - SLL does not use workers yet.
 #}
+
 {% import "entry_macros.html" as macros %}
 
 {% set is_manager = current_user.is_manager %}
@@ -41,37 +40,15 @@
     <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
 
 
-            <div class="tab-regular">
-                <ul class="nav nav-tabs nav-fill" id="myTab7" role="tablist">
-
-                    <li class="nav-item">
-                        <a class="nav-link active" id="session-general-tab" data-toggle="tab" href="#session-general" role="tab" aria-controls="current" aria-selected="true">General</a>
-                    </li>
-
-                    {% if session_extra_form %}
-                        <li class="nav-item">
-                            <a class="nav-link" id="session-extra-tab" data-toggle="tab" href="#session-extra" role="tab" aria-controls="summary" aria-selected="false">Extra</a>
-                        </li>
-                    {%  endif %}
-
-                </ul>
-
-                <div class="tab-content" id="myTabContent7">
-                    <!-- tab "Current" -->
-                    <div class="tab-pane fade show active" id="session-general" role="tabpanel" aria-labelledby="session-general-tab">
-
                     <form id="session-form" data-parsley-validate="" novalidate="">
                     <div class="row">
                         <div class="col-7">
-                            <!-- Session's Name -->
-                            {{ macros.session_dialog_row('Session Name', 'session_name', '', 'Leave blank to auto-assign') }}
+                            <!-- Name Row: always auto-generated (SLL facility rule) -->
                             <div class="form-group row">
-                                <div class="col-3"></div>
-                                <div class="col-8">
-                                    <div class="form-text text-muted" style="font-size: 1rem;">
-                                        Next auto-assigned code: <strong>{{ suggested_session_name }}</strong>.
-                                        Only type a name above to override it (e.g. a special/debugging session).
-                                    </div>
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Name</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <h3 class="col-12 text-sm-left">{{ suggested_session_name or 'assigned automatically' }}*</h3>
+                                    <label class="col-12 col-form-label text-sm-left">(* can change after folders creation)</label>
                                 </div>
                             </div>
 
@@ -83,11 +60,19 @@
                                 </div>
                             </div>
 
+                            <!-- Creator Row -->
+                            <div class="form-group row">
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Creator</label>
+                                <div class="col-12 col-sm-8 col-lg-6">
+                                    <label class="col-12 col-form-label text-sm-left">{{ booking.creator.name }}</label>
+                                </div>
+                            </div>
+
                             <!-- Operator Row -->
                             <div class="form-group row">
-                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Staff</label>
+                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Operator</label>
                                 <div class="col-12 col-sm-8 col-lg-6">
-                                    <label class="col-12 col-sm-3 col-form-label text-sm-left">{{ booking.operator.name }}</label>
+                                    <label class="col-12 col-form-label text-sm-left">{{ booking.operator.name if booking.operator else '' }}</label>
                                 </div>
                             </div>
 
@@ -96,34 +81,15 @@
                                 <label class="col-12 col-sm-3 col-form-label text-sm-right">Microscope</label>
                                 <div class="col-12 col-sm-8 col-lg-6">
                                     <div class="row align-items-center justify-content-start">
-                                    <div class="col">
-                                        <img src="{{ url_for('images.static', filename=booking.resource.image) }}" alt="{{ booking.resource.name }}" width="48" style="margin-right: 0;">
+                                        <div class="col">
+                                            <img src="{{ url_for('images.static', filename=booking.resource.image) }}" alt="{{ booking.resource.name }}" width="48" style="margin-right: 0;">
+                                        </div>
+                                        <div class="col-10 text-sm-left">
+                                            <h5>{{ booking.resource.name }}</h5>
+                                        </div>
                                     </div>
-                                    <div class="col-10 text-sm-left">
-                                        <h5>{{ booking.resource.name }}</h5>
-                                    </div>
-                                </div>
-
                                 </div>
                             </div>
-
-                            <!-- Project id -->
-                            <div class="form-group row">
-                                <label class="col-12 col-sm-3 col-form-label text-sm-right">Project ID</label>
-                                <div class="col-12 col-sm-8 col-lg-6">
-                                    <select id="session-projectid-select" class="selectpicker show-tick" data-live-search="true" data-key="project_id">
-                                        <option value="0">Not set</option>
-                                        {% for p in projects %}
-                                            {% set selected = 'selected' if p.id == booking.project.id else '' %}
-                                            <option {{ selected }} value="{{ p.id }}">{{ p.title }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {{ macros.session_dialog_row('RAW data folder', 'raw_folder', '', 'Provide RAW data folder') }}
-                            {{ macros.session_dialog_row('OTF folder', 'otf_folder', '', 'If OTF folder is not provided it will be created') }}
-
                         </div>
 
                         <div class="col-5 p-0 m-0">
@@ -137,20 +103,6 @@
                     </div>
 
                     </form>
-                    </div>
-
-
-                 {% if session_extra_form %}
-                     <div class="tab-pane fade" id="session-extra" role="tabpanel" aria-labelledby="session-extra-tab">
-                        <form id="session_extra_form">
-                            {% set definition = session_extra_form.definition %}
-                            {% include "dynamic_form.html" %}
-                        </form>
-                    </div>
-                {%  endif %}
-
-                </div>
-            </div>
     </div>
     <!-- end Booking Form -->
 
@@ -184,36 +136,12 @@
             }
         }
 
-        // SLL-specific naming (README.rst, section 7): the Session Name
-        // field is OPTIONAL. Leave it blank for the normal case and the
-        // server auto-assigns the next cem/dbb/fac/ext code for this
-        // booking's application (DataManager.get_new_session_info() /
-        // create_session()). Only type a name for a special/debugging
-        // session that needs an explicit name - in that case it's used
-        // exactly as typed, with NO prefix added (unlike core's default
-        // template, which always prepended a date/resource prefix that
-        // never matched any real SLL session name).
-        let sessionName = formValues.session_name;
-
-        if (nonEmpty(sessionName)) {
-            var regex = /^[a-zA-Z0-9-_]{2,64}$/;
-            if (!regex.test(sessionName)) {
-                showError("Provide a valid <strong>Session Name</strong>.<br>" +
-                    "<p>It must have from 2 to 32 digits, containing letters, numbers, slash or underscore.</p>");
-                return;
-            }
-
-            attrs.name = sessionName;
-            attrs.extra = {
-                raw: { path: formValues.raw_folder },
-                otf: { path: formValues.otf_folder },
-                project_id: formValues.project_id,
-                data: getFormAsJson('session_extra_form', true)
-            }
-            attrs.tasks = []
-        }
-        // else: attrs.name is intentionally left unset, so the server
-        // assigns the next SLL code automatically.
+        // SLL: the session name is never sent. The server assigns the next
+        // code (dbb/cem/fac/ext + counter) via get_new_session_info().
+        // The project comes from the booking (Session.project falls back to it).
+        // No RAW folder is given, so skip the RAW folder check (same pattern
+        // as core's session_form.html).
+        attrs.check_raw = false;
 
         var ajaxContent = $.ajax({
             url: "{{ url_for('api.create_session') }}",
