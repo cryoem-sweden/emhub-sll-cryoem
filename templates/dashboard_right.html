@@ -25,8 +25,11 @@
                         <div class="card-body">
                             <div class="row">
                                 {% set create_session_func = resource_create_session.get(r['name'], None) %}
-                                {% if r['id'] in resource_bookings and resource_bookings[r['id']]['today'] and create_session_func %}
-                                    {% set booking = resource_bookings[r['id']]['today'][0] %}
+                                {# Only real bookings (no slots/downtime), and only the one running right now; latest start wins, as in 0.6.x #}
+                                {% set now = current_app.dm.now() %}
+                                {% set todays = resource_bookings[r['id']]['today']|selectattr('type', 'equalto', 'booking')|list if r['id'] in resource_bookings else [] %}
+                                {% set booking = todays|selectattr('start', 'le', now)|selectattr('end', 'ge', now)|list|last %}
+                                {% if booking and create_session_func %}
                                     {% set sessions = booking.session %}
                                     <div class="col-7 mr-0">
                                          <a href="javascript:createSession({{ booking.id }}, {{ sessions|length }}, '{{ create_session_func }}')" class="btn btn-primary mr-0">
@@ -61,20 +64,19 @@
                                 <td colspan="4" >{{ bTitle }}</td>
                             </tr>
 
-                            {% if bList|length > 0 %}
-                                {% for b in bList %}
+                            {# No slots; normal users only see their own lab's bookings, as in 0.6.x #}
+                            {% for b in bList if b.type != 'slot' and (current_user.is_manager or current_user.same_pi(b.owner)) %}
                                 <tr>
                                     <td>{{ b.owner|pairname }}</td>
                                     <td>{{ b.resource.name }}</td>
                                     <td>{{ b.start|pretty_datetime }}</td>
                                     <td>{{ b.end|pretty_datetime }}</td>
                                 </tr>
-                                {% endfor %}
                             {% else %}
                                 <tr>
                                 <td colspan="3" >None</td>
                             </tr>
-                            {% endif %}
+                            {% endfor %}
                         {% endfor %}
                         </tbody>
                     </table>
