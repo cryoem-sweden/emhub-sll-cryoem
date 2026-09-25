@@ -98,7 +98,7 @@ Status / open items
    per microscope still need to be filled in (see section 2 below for where
    old camera info lives) via ``dm.update_config('sessions', ...)``.
 #. **Booking permissions gap** for 5 resources not covered by the new
-   ``config:permissions`` - see section 3.
+   ``config:permissions`` - see section 3. (resolved)
 
 2. Converting legacy ``sessions_config`` to ``config:sessions``
 =================================================================
@@ -325,10 +325,10 @@ Chamaleon, Umeå Aquilos 2, Mass Photometry, Rapid Support Data Processing
 and Primo are currently manager-only to book (no matching tag/permission
 entry). Confirm with Jose whether that's intentional per-instrument, or
 whether they should get a generic tag (Option A) or their own entry
-(Option B).
+(Option B). (resolved, see update below)
 
-Update (2026-09-23, Gerrit)
-----------------------------
+Update (2026-09-23 and 2026-09-25, Gerrit)
+------------------------------------------
 
 Updated the tags in SLL Live instance (emhub.cryoem.se) via GUI.
 
@@ -345,8 +345,8 @@ Updated the tags in SLL Live instance (emhub.cryoem.se) via GUI.
      - ``instrument``
    * - Umeå Aquilos 2
      - ``Umeå cryo-FIB-SEM``
-     - *pending* - waiting for Umeå decision
-     - *pending*
+     - ``fibsem umea``
+     - own entry ``fibsem umea`` (staff only)
    * - Mass Photometry
      - ``Refeyn``
      - ``instrument solna``
@@ -808,7 +808,7 @@ Checklist
 - [ ] Decide fate of ``sessions_config`` (archive vs delete) after
       verifying the ``counters`` section against real booking/session
       history
-- [ ] Decide booking permissions for Chamaleon / Aquilos 2 / Mass
+- [x] Decide booking permissions for Chamaleon / Aquilos 2 / Mass
       Photometry / Rapid Support Data Processing / Primo
 - [x] Make PortalManager degrade gracefully when the Portal is unreachable
       (core fix, needs the ``emhub`` core repo's changes pulled/deployed

@@ -110,16 +110,20 @@ from emhub.client import open_client
 # New config forms (currently entirely missing from the SLL DB)
 # ---------------------------------------------------------------------------
 
+ # Umeå Aquilos 2: staff only (confirmed by Umeå/Erin 2026-09-23).
+
 CONFIG_PERMISSIONS = {
     "create_booking": {
         "microscope": ["admin", "manager", "user"],
         "instrument": ["admin", "manager", "user"],
-        "service": ["admin", "manager", "user"]
+        "service": ["admin", "manager", "user"],
+        "fibsem umea": ["admin", "manager"]
     },
     "delete_booking": {
         "microscope": ["admin", "manager", "user"],
         "instrument": ["admin", "manager", "user"],
-        "service": ["admin", "manager", "user"]
+        "service": ["admin", "manager", "user"],
+        "fibsem umea": ["admin", "manager"]
     },
     "create_session": ["manager", "admin"],
     "content": {
