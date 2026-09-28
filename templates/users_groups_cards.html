@@ -1,0 +1,39 @@
+
+{% for users in labs %}
+
+    <div class="col-xl-4 col-lg-4 col-md-6 col-sm-12 col-12 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h3>{{ users[0]['name'] }}</h3>
+
+            </div>
+            <div class="card-body">
+                <ul>
+                    {% for user in users[1:] %}
+                        <li>
+                            <div class="row">
+                                {% if current_user.is_manager %}
+                                    {# SLL: col-auto + d-flex so the 3 buttons stay on one line (core: col-2 + row) #}
+                                    <div class="col-auto">
+                                        <div class="d-flex">
+                                            <button class="btn btn-sm btn-outline-light" onclick="showUserProfile({{ user['id'] }})"><i class="far fa-user"></i></button>
+                                            <button class="btn btn-sm btn-outline-light" onclick="showUser({{ user['id'] }})"><i class="far fa-edit"></i></button>
+                                            <button class="btn btn-sm btn-outline-light" onclick="deleteUser({{ user['id'] }})"><i class="far fa-trash-alt"></i></button>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {# SLL: col instead of col-5, so name/email share the remaining space #}
+                                <div class="col"><a href="javascript:showUser({{ user['id'] }})">{{ user['name'] }}</a></div>
+                                <div class="col"><label>{{ user['email'] }}</label></div>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+
+        </div>
+    </div>
+{% endfor %}
+
+
