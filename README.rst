@@ -803,7 +803,7 @@ guessed at here.
 
 ``templates/projects_list_table.html`` overrides the core table (changes
 marked ``SLL``): columns id, created, status, user/pi, title, last updated,
-last updated by, actions. Days/sessions/images/data columns are switched
+last updated by, actions. Days/images/data columns are switched
 off via ``config:projects.display_table.extra_columns = []`` (fix script,
 ``update_projects_display_table``). 
 
