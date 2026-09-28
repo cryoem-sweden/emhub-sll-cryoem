@@ -77,7 +77,7 @@
                     {% endif %}
 
                     {# SLL: actions in their own column #}
-                    <td>
+                    <td style="white-space: nowrap">
                         <a href="{{ url_for_content('project_details', project_id=p.id) }}" class="btn btn-outline-light">
                             <i class="fa fa-eye"></i></a>
                         {% if p.user_can_edit %}

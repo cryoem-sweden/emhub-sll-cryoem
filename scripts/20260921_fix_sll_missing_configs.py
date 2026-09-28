@@ -217,8 +217,8 @@ MICROSCOPE_RESOURCE_NAMES = [
 
 # config:projects exists already; only display_table is merged in
 CONFIG_PROJECTS_DISPLAY_TABLE = {
-    # Hide days/sessions/images/data columns in the projects list
-    "extra_columns": []
+    # Hide days/images/data columns in the projects list
+    "extra_columns": ["sessions"]
 }
 
 def log(message):
