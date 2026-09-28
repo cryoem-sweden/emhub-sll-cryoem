@@ -798,6 +798,15 @@ worth confirming with a real "leave it blank" submission before relying
 on this for production sessions - flagged in the Checklist rather than
 guessed at here.
 
+8. Projects list in old layout (2026-09-28)
+=============================================
+
+``templates/projects_list_table.html`` overrides the core table (changes
+marked ``SLL``): columns id, created, status, user/pi, title, last updated,
+last updated by, actions. Days/sessions/images/data columns are switched
+off via ``config:projects.display_table.extra_columns = []`` (fix script,
+``update_projects_display_table``). 
+
 Checklist
 =========
 

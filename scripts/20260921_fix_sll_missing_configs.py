@@ -85,7 +85,7 @@ IMPORTANT - things this script deliberately does NOT invent:
     Rapid Support Data Processing / Primo (no tags) don't match any of
     those and will stay manager-only to book until they get a matching
     tag or an explicit permissions entry - please confirm if that's
-    intentional.
+    intentional. --> FIXED
 
 Run with the emhub server for the SLL instance up locally and the usual
 SLL client env vars sourced (EMHUB_SERVER_URL, EMHUB_USER, EMHUB_PASSWORD),
@@ -110,7 +110,7 @@ from emhub.client import open_client
 # New config forms (currently entirely missing from the SLL DB)
 # ---------------------------------------------------------------------------
 
- # Umeå Aquilos 2: staff only (confirmed by Umeå/Erin 2026-09-23).
+# Umeå Aquilos 2: staff only (confirmed by Umeå/Erin 2026-09-23).
 
 CONFIG_PERMISSIONS = {
     "create_booking": {
@@ -134,10 +134,10 @@ CONFIG_PERMISSIONS = {
     #   KeyError: 'projects' in dc_projects.py/get_user_projects
     "projects": {
         "can_create": "all",
+        # Only own projects / own lab for non-managers
         "view_options": [
             {"key": "mine", "label": "My Projects"},
-            {"key": "lab", "label": "Lab's Projects"},
-            {"key": "all", "label": "All Projects"}
+            {"key": "lab", "label": "Lab's Projects"}
         ]
     }
 }
@@ -215,6 +215,11 @@ MICROSCOPE_RESOURCE_NAMES = [
     "Umeå Glacios",
 ]
 
+# config:projects exists already; only display_table is merged in
+CONFIG_PROJECTS_DISPLAY_TABLE = {
+    # Hide days/sessions/images/data columns in the projects list
+    "extra_columns": []
+}
 
 def log(message):
     print(f"{Pretty.now()}: {message}", flush=True)
@@ -243,6 +248,18 @@ def update_sessions_create_session(dc, forms):
     dc.request('update_form', jsonData={'attrs': form})
     log(f"     Done. create_session -> {json.dumps(SESSIONS_CREATE_SESSION)}")
 
+def update_projects_display_table(dc, forms):
+    """ Merge display_table into config:projects without touching other keys. """
+    log(Color.green(">>> Updating config:projects.display_table..."))
+    form = forms.get('config:projects')
+    if form is None:
+        log(Color.warn("     - config:projects not found, skipping"))
+        return
+    definition = dict(form['definition'])  # keep entries_menu, entries, etc.
+    definition['display_table'] = CONFIG_PROJECTS_DISPLAY_TABLE
+    form['definition'] = definition
+    dc.request('update_form', jsonData={'attrs': form})
+    log(f"     Done. display_table -> {json.dumps(CONFIG_PROJECTS_DISPLAY_TABLE)}")
 
 def update_configs():
     with open_client() as dc:
@@ -261,6 +278,7 @@ def update_configs():
                 dc.request('create_form', jsonData={'attrs': formData}).json()
 
         update_sessions_create_session(dc, forms)
+        update_projects_display_table(dc, forms)
 
         log(Color.green(">>> Updating config:bookings with experiment_forms..."))
         bookings_form = forms.get('config:bookings')

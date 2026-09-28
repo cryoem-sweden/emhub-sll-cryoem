@@ -1,0 +1,116 @@
+{% import "entry_macros.html" as macros %}
+{# SLL override of core projects_list_table.html #}
+
+    <table id="projects-table" class="table">
+        <thead>
+            <tr>
+                <th>id</th>
+                <th>created</th>
+                <th>status</th> 
+                <th>user/pi</th>
+                <th>title</th>
+                <th>last updated</th>
+                <th>last updated by</th>
+                {# SLL: days column only if configured #}
+                {% if 'days' in extra_columns %} <th>{{ resource_days_tag }} days</th> {% endif %}
+                {% set show_sessions = 'sessions' in extra_columns %}
+                {% set show_images = 'images' in extra_columns %}
+                {% set show_data = 'data' in extra_columns %}
+
+                {% if show_sessions %} <th>sessions</th> {% endif %}
+                {% if show_images %} <th>images</th> {% endif %}
+                {% if show_data %} <th>data</th> {% endif %}
+
+                {% if show_extra %}
+                    <th>extra</th>
+                {% endif %}
+                <th>actions</th> {# SLL #}
+            </tr>
+        </thead>
+        <tbody>
+        {% for p in projects %}
+            {% set status = p['status'] %}
+            {% if is_manager or status != 'disabled' %}
+                {% set color = 'black' if status == 'active' else 'gray' %}
+                <tr style="color: {{ color }}">
+                    <td>
+                        {{ macros.project(p) }}
+                    </td>
+                    <td>{{ p.date|pretty_date }}</td>
+                    <td>{{ p.status }}</td>
+                    {% set pi = p.user.get_pi() %}
+                    {% set apps = pi.get_applications() if pi else [] %}
+                    {# SLL: full names and application#}
+                    {% set pi_name = ' / %s'|format(pi.name) if pi else '' %}
+                    {% set app = ' / %s'|format(apps[0].code) if apps else '' %}
+                    <td>{{ p.user.name }} {{ pi_name }} {{ app }}</td>
+                    <td>{{ p.display_title }}</td>
+                    <td>{{ p.last_update_date|pretty_date }}</td> {# SLL #}
+                    <td>{{ p.last_update_user.name }}</td> {# SLL #}
+
+                    {% if 'days' in extra_columns %} {# SLL #}
+                        <td>
+                            {% if 'data' in extra_columns and p.stats %}
+                                {{ p.stats['days'] }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+
+                    {% if show_sessions %}
+                       <td style="max-width: 300px">
+                        {{ macros.session_list(p.sessions) }}
+                        </td>
+                    {% endif %}
+                    {% if show_images %}
+                        <td>
+                           {% if p.stats %} {{ p.stats['images'] }} {% endif %}
+                        </td>
+                    {% endif %}
+                    {% if show_data %}
+                        <td>
+                           {% if p.stats %}  {{ p.stats['size'] }} {% endif %}
+                        </td>
+                    {% endif %}
+
+                    {%  if show_extra %}
+                        <td> {{ p.extra }} </td>
+                    {% endif %}
+
+                    {# SLL: actions in their own column #}
+                    <td>
+                        <a href="{{ url_for_content('project_details', project_id=p.id) }}" class="btn btn-outline-light">
+                            <i class="fa fa-eye"></i></a>
+                        {% if p.user_can_edit %}
+                             <a href="javascript:showProjectForm({{ p['id'] }})" class="btn btn-outline-light">
+                                 <i class="far fa-edit"></i></a>
+                        {% endif %}
+                        {% if  current_user.can_delete_project(p) %}
+                             <a href="javascript:deleteProject({{ p['id'] }})" class="btn btn-outline-light">
+                                 <i class="far fa-trash-alt"></i></a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+        {% endfor %}
+
+        </tbody>
+    </table>
+
+
+
+<script>
+    (function(window, document, $, undefined) {
+    "use strict";
+
+        $('#projects-table').DataTable({
+            sDom: 'lfrtip',
+            paging: true,
+            info: true,
+            order: [[ 5, "desc" ]], // SLL: 'last updated' is column 5 here
+            pageLength: 25
+            //ordering: false
+        });
+
+    })(window, document, window.jQuery);
+
+</script>
