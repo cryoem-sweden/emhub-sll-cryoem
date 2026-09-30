@@ -570,8 +570,9 @@ Fix
 Not changed / still worth a look
 -----------------------------------
 
-- ``reports_invoices()`` in core (section above) - left in core since it's
-  already optional and embedded in generic report code.
+- ``reports_invoices()`` in core still calls the Portal (``hasattr`` guard),
+  but its result is no longer used on SLL: invoice reference/address now
+  come from EMhub itself, see section 12.
 - ``applications_check`` has no sidebar link yet (unlike the other two) -
   it's now reachable at ``content_id=applications_check`` if you want to
   wire up a page for it, but nothing does today.
@@ -828,12 +829,106 @@ Tested locally on the 2.0 checkout (not offline, real local server):
 8. Projects list in old layout (2026-09-28)
 =============================================
 
-``templates/projects_list_table.html`` overrides the core table (changes
-marked ``SLL``): columns id, created, status, user/pi, title, last updated,
-last updated by, actions. Days/images/data columns are switched
-off via ``config:projects.display_table.extra_columns = []`` (fix script,
-``update_projects_display_table``). 
+``templates/projects_list_table.html`` overrides the core table: columns id,
+created, status, user/pi, title, last updated, last updated by, sessions,
+actions. Set in ``config:projects`` by the fix script:
+ 
+- ``display_table.extra_columns = ["sessions"]`` (days/images/data off)
+- ``view_options = ["mine", "lab"]`` - users only see their own lab's
+  projects, as in 0.6.2 (core default also offers "all")
+ 
 
+9. Sessions list in 0.6.2 layout (2026-09-28)
+===============================================
+ 
+``templates/sessions_list.html`` overrides the core list:
+columns id, name, start, microscope, status, booking_id, project,
+owner (full name), operator, extra, actions (delete only, admins).
+ 
+- ``extra`` (data folder, data user password) is always shown to managers.
+
+- Sidebar link uses ``days=100000`` so the menu shows all sessions as in
+  0.6.2 (core: last 30 days).
+ 
+10. Session page: acquisition card (2026-09-28)
+=================================================
+ 
+``templates/session_content.html``: acquisition values (voltage,
+magnification, pixel size, dose, cs) shown as a table card in the left
+column below "Overview", using core's ``macros.trow``.
+ 
+11. ``main.html`` override removed (2026-09-29)
+=================================================
+ 
+Problem: ``templates/main.html`` was a copy from 2023 without the
+``main_modals.html``.
+ 
+Fix: deleted the override, core's ``main.html`` is used.
+ 
+12. Invoice data local in EMhub instead of the Order Portal (2026-09-30)
+=========================================================================
+ 
+Problem
+-------
+ 
+The invoices table got each PI's invoice reference/address live from the
+Portal (``sll_pm.fetchAccountsJson()``, matched by e-mail) on every page
+load. Nothing was stored in EMhub. Only 22 of 65 PIs with bookings in the
+last 12 months matched a Portal account (different e-mails, e.g.
+``chem.gu.se`` vs ``kemi.uu.se``), so most rows were empty. 
+The facility wants to stop using the portal and store invoice data in EMhub.
+ 
+Fix (SLL repo only, core unchanged)
+-----------------------------------
+ 
+Invoice data per PI is stored in ``user.extra['invoice']`` (core already
+has the property ``User.invoice``, it was never used):
+``reference, vat, university, department, address, zip, city, country``.
+ 
+- ``data_content.py``: ``INVOICE_FIELDS`` (key, label, multiline,
+  required) and content function ``user_invoice_form`` (PIs only; only
+  managers or the PI himself). Core's ``invoice_period`` and
+  ``reports_invoices`` are wrapped via ``dc.get_content_func()`` and get
+  ``invoice_info`` (PI id -> invoice data) added - no core code copied.
+- ``templates/user_invoice_form.html`` (new): form with all fields,
+  required fields marked ``*`` and checked before saving, hint "billing
+  address, not delivery address". Saved with the existing
+  ``update_user`` API (``extra`` is merged, ``pi_id`` is sent along).
+- ``templates/user_form.html`` (core copy): "Invoice information" button
+  for PIs; opens the form in core's ``#experiment-modal`` on top of the
+  user form (same as core's ``showBookingCosts()``).
+- ``templates/invoices_list.html`` (core copy): reference/address from
+  ``invoice_info`` instead of ``portal_users``.
+ 
+Notes
+-----
+ 
+- One Portal account had country ``False`` (Norway ``NO`` read as YAML
+  boolean in the Portal) - fix by hand after the import.
+- As long as ``SLL_PORTAL_API`` is configured, core still calls the Portal
+  on the invoices page (result unused). Goes away with the Portal shutdown.
+
+TODO
+----
+
+- Create script to import invoice data from the Portal once 2.0 goes live
+ 
+13. Invoice periods: last day not invoiced in 0.6.2 (found 2026-09-26)
+=======================================================================
+ 
+In 0.6.2 bookings starting on the last day of an invoice period are in no
+invoice (period end = 00:00 of the last day). Fixed in 2.0 (end + 1 day).
+Checked against the 0.6.2 Excel export (Q2 2025, CEM00681: bookings 7335
+and 7348 missing). Old periods are not corrected; periods still active on
+0.6.2 are handled by hand until go-live.
+ 
+14. Users groups cards on laptops (2026-09-30)
+===============================================
+ 
+``templates/users_groups_cards.html``: buttons in one line (``col-auto`` +
+``d-flex``), name and e-mail stacked in one column, so the cards don't
+wrap on narrow screens.
+ 
 Checklist
 =========
 
@@ -857,8 +952,7 @@ Checklist
       repo's ``api.py``/``data_content.py``, and fix the pre-existing bugs
       that left "Import Users/Applications from Portal" unreachable
 - [x] Smoke-test "Import Users from Portal" and "Import Applications from
-      Portal" against a live Portal connection (not possible from this
-      offline dev checkout)
+      Portal" against a live Portal connection (done 2026-09-30, see section 6)
 - [x] Fix the "New Session" dialog to use SLL's auto-numbering
       (cem/dbb/fac/ext + counter) instead of requiring a typed name with
       a date/resource prefix that matched no existing SLL session name
@@ -868,6 +962,22 @@ Checklist
       auto-assigned code, and decide whether project_id/extra-form data
       should be saved even when the name is left blank (today it isn't,
       matching core's original - never-reachable - behavior)
+      -> project is saved (done 2026-09-30, see section 7)
 - [x] Correct section 2's guidance on ``sessions_config``'s ``counters``
       section - it is live, load-bearing state (session code
       auto-numbering), not safe to archive/delete as originally written
+- [ ] BLOCKER: new bookings are saved with ``extra: null``
+      (``booking_form.html``: ``{{ booking.extra|tojson }}`` is ``null`` for new
+      bookings, sent as ``booking.extra`` since d41d874, 2025-10-20)
+      -> invoice period page crashes (``Booking.__getExtra``: ``self.extra.get``).
+      Fix: ``{{ (booking.extra or {})|tojson }}`` + ``(self.extra or {})``
+      in ``Booking.__getExtra/__setExtra``
+- [ ] ``showBookingCosts()`` / ``booking_costs_table``: not linked from any
+      template anymore (dead code?)
+- [x] Invoice data stored in EMhub instead of the Portal (section 12)
+- [ ] Go-live BLOCKER: users/PIs can't save their own profile or
+      password (core ``update_user_form`` reads the disabled status
+      field) - core fix or SLL workaround before go-live
+- [ ] Remove ``SLL_PORTAL_API``, Portal menu and Portal code when the
+      Portal is shut down
+ 
