@@ -1,0 +1,82 @@
+<!-- ============================================================== -->
+<!-- SLL: Invoice information of a PI (stored in user.extra['invoice']) -->
+<!-- ============================================================== -->
+{% set can_edit = current_user.is_manager or current_user.id == user.id %}
+{% set readonly = '' if can_edit else 'readonly' %}
+
+  <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title"> Invoice Information: {{ user.name }} </h3>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        {# SLL: many PIs enter their postal/delivery address here by mistake #}
+        <div class="alert alert-warning" role="alert">
+          Please enter the <strong>billing address</strong> of your university or institution, i.e. where <strong>invoices</strong> are sent!
+        </div>
+        <form id="invoice-form" novalidate="">
+          {% for key, label, multiline, required in invoice_fields %}
+            <div class="form-group row">
+              <label for="invoice-{{ key }}" class="col-12 col-sm-3 col-form-label text-sm-right">{{ label }}{% if required %} *{% endif %}</label>
+              <div class="col-12 col-sm-8">
+                {% if multiline %}
+                  <textarea id="invoice-{{ key }}" class="form-control" rows="3" {{ readonly }}>{{ invoice.get(key, '') }}</textarea>
+                {% else %}
+                  <input type="text" id="invoice-{{ key }}" class="form-control" value="{{ invoice.get(key, '') }}" {{ readonly }}>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </form>
+        <div id="invoice-error" class="text-danger text-right mr-4"></div>
+      </div>
+
+      <div class="modal-footer">
+        {% if can_edit %}
+          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-outline-dark" onclick="onInvoiceSave()">Save</button>
+        {% else %}
+          <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">OK</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+{% if can_edit %}
+<script>
+function onInvoiceSave() {
+    var invoice = {};
+    var missing = [];
+    {% for key, label, multiline, required in invoice_fields %}
+    invoice['{{ key }}'] = $('#invoice-{{ key }}').val().trim();
+    {% if required %}$('#invoice-{{ key }}').toggleClass('is-invalid', !invoice['{{ key }}']);
+    if (!invoice['{{ key }}']) missing.push('{{ label }}');{% endif %}
+    {% endfor %}
+
+    if (missing.length) {
+        // shown inside this modal (a showError dialog would open behind it)
+        $('#invoice-error').text('Please fill in: ' + missing.join(', '));
+        return;
+    }
+
+    var attrs = {
+        id: {{ user.id }},
+        pi_id: {{ user.pi_id|tojson }},  // update_user resets pi_id if it is missing
+        extra: {invoice: invoice}        // merged into the existing extra
+    };
+
+    send_ajax_json(Api.urls.user.update, attrs, function (jsonResponse) {
+        if ('user' in jsonResponse) {
+            $('#experiment-modal').modal('hide'); // user modal stays open
+            showMessage('SUCCESS', 'Invoice information saved.');
+        }
+        else {
+            $('#invoice-error').text(jsonResponse.error || 'Unexpected response from server.');
+        }
+    });
+}
+</script>
+{% endif %}

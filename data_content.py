@@ -47,6 +47,10 @@ name here with @dc.content replaces core's version in dc._contentDict -
 same mechanism the paired create_session_form.html template override in
 this repo's templates/ relies on (extra/templates is searched before
 core's templates, see emhub/__init__.py).
+
+Also: invoice information per PI (user.extra['invoice']) - content
+function user_invoice_form and wrappers around core's invoice_period /
+reports_invoices (see README.rst, section 12).
 """
 import os
 import datetime as dt
@@ -274,4 +278,62 @@ def register_content(dc):
             'session_extra_form': dm.get_session_form(b.resource.name)
         }
         data.update(dc.get_user_projects(b.owner, status='active'))
+        return data
+
+    # ------------------------------------------------------------------
+    # SLL: Invoice information per PI, stored in user.extra['invoice']
+    # (core property User.invoice). Replaces the Order Portal lookup.
+    # ------------------------------------------------------------------
+    INVOICE_FIELDS = [
+        # (key, label, multiline, required)
+        ('reference', 'Invoice Reference', False, True),
+        ('vat', 'VAT Number', False, False),
+        ('university', 'University', False, False),
+        ('department', 'Department', False, False),
+        ('address', 'Invoice Address', True, True),
+        ('zip', 'ZIP', False, True),
+        ('city', 'City', False, True),
+        ('country', 'Country', False, True),
+    ]
+
+    @dc.content
+    def user_invoice_form(**kwargs):
+        user = dc.app.dm.get_user_by(id=int(kwargs['user_id']))
+        current = dc.app.user
+
+        if user is None or not user.is_pi:
+            raise Exception("Invoice information is only available for PIs.")
+
+        if not (current.is_manager or current.id == user.id):
+            raise Exception("You are not allowed to see this invoice information.")
+
+        return {
+            'user': user,
+            'invoice': user.invoice or {},
+            'invoice_fields': INVOICE_FIELDS,
+        }
+
+    # ------------------------------------------------------------------
+    # SLL: invoice information per PI from user.extra['invoice'] for the
+    # invoices tables (extra/templates/invoices_list.html). Wraps core's
+    # content functions (dc.get_content_func) instead of copying them.
+    # ------------------------------------------------------------------
+    def _get_invoice_info():
+        return {u.id: u.invoice or {}
+                for u in dc.app.dm.get_users() if u.is_pi}
+
+    _core_invoice_period = dc.get_content_func('invoice_period')
+
+    @dc.content
+    def invoice_period(**kwargs):
+        data = _core_invoice_period(**kwargs)
+        data['invoice_info'] = _get_invoice_info()
+        return data
+
+    _core_reports_invoices = dc.get_content_func('reports_invoices')
+
+    @dc.content
+    def reports_invoices(**kwargs):
+        data = _core_reports_invoices(**kwargs)
+        data['invoice_info'] = _get_invoice_info()
         return data

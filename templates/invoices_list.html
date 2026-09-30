@@ -1,0 +1,177 @@
+{# SLL override of core invoices_list.html: invoice reference/address come from
+   user.extra['invoice'] (invoice_info, added in extra/data_content.py) instead of
+   the Order Portal (portal_users). #}
+
+{% macro invoice_address(inv) -%}
+    {{ [inv.university, inv.department, inv.address, inv.zip, inv.city, inv.country]|select|join(', ') }}
+    {%- if inv.vat %}, VAT: {{ inv.vat }}{% endif %}
+{%- endmacro %}
+
+<div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
+    <div class="card">
+        <div class="card-header">
+            <div class="row">
+                {%  if hide_buttons is none %}
+                    {% set btn_prefix = 'Hide' if group == 1 else 'Show' %}
+                    <a id="show-hide-btn" class="btn btn-outline-dark" href="{{ url_for('main', content_id='invoice_period', period=period.id, tab='invoices', group=1-group) }}"> {{ btn_prefix }} Application Groups  </a>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table table-invoice" style="width:100%">
+                <thead>
+                <tr class="table-secondary">
+                    <th>Principal Investigator</th>
+                    <th>Invoice Reference</th>
+                    <td>Invoice Address</td>
+                    <th>Bookings</th>
+                    <td>Days</td>
+                    <td>Cost ({{ currency }})</td>
+                    <td>Extras ({{ currency }}) </td>
+                    <td>TO BE INVOICED ({{ currency }}) </td>
+                    <td>Details</td>
+                </tr>
+                </thead>
+
+                <tbody>
+
+                {% if group == 1 %}
+                    {# Group rows by Application (CEM)#}
+
+                    {% for cem, pi_dict in apps_dict.items() %}
+                        {% set cem_total = pi_dict.values()|sum(attribute='sum_cost') %}
+                        {% set cem_sum_days = pi_dict.values()|sum(attribute='sum_days') %}
+                        {% if cem_total > 0 %}
+                            <tr class="table-primary"> <!-- CEM row -->
+                                <td>{{ cem }}</td>
+                                <td> </td>
+                                <td> </td>
+                                <td> </td>
+                                <td> {{ cem_days }}</td>
+                                <td>{{ cem_total }}</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+
+                            {% for pi_id, pi_info in pi_dict.items() %}
+                                {% set bookings = pi_info['bookings'] %}
+                                {% set extra_costs = transactions_dict.get(pi_id, 0) %}
+                                {% set to_invoice = pi_info['sum_cost'] + extra_costs %}
+                                {% if bookings|length > 0 or extra_costs != 0 %}
+                                    {% set inv = (invoice_info or {}).get(pi_id, {}) %} {# SLL #}
+                                    <tr>
+                                        <td><a href="javascript:showPiInvoicesForm({{ pi_id }}, '{{ pi_info['pi_name'] }}')"> {{ pi_info['pi_name'] }} </a></td>
+                                        <td>{{ inv.reference }}</td> {# SLL #}
+                                        <td>{{ invoice_address(inv) }}</td> {# SLL #}
+                                        <td>{{ bookings|length }}</td>
+                                        <td>{{ pi_info['sum_days'] }}</td>
+                                        <td>{{ pi_info['sum_cost'] }}</td>
+                                        <td> {{ extra_costs }}</td>
+                                        <td> <span class="font-weight-bold"> {{ to_invoice }}</span></td>
+                                        <td>
+                                            <div class="col-1"><a href="javascript:showPiInvoicesForm({{ pi_id }}, '{{ pi_info['pi_name'] }}')"><i class="fas fa-eye"></i></a></div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+
+                        {% endif %}
+                    {% endfor %}
+
+                {% else %}
+                    {# No grouping, just PI rows #}
+                    {% for pi_id, pi_info in pi_dict.items() %}
+                        {% set bookings = pi_info['bookings'] %}
+                        {% set extra_costs = transactions_dict.get(pi_id, 0) %}
+                        {% set to_invoice = pi_info['sum_cost'] + extra_costs %}
+                        {% if bookings|length > 0 or extra_costs != 0 %}
+                            {% set inv = (invoice_info or {}).get(pi_id, {}) %} {# SLL #}
+                            <tr>
+                                <td><a href="javascript:showPiInvoicesForm({{ pi_id }}, '{{ pi_info['pi_name'] }}')" </a>{{ pi_info['pi_name'] }}</td>
+                                <td>{{ inv.reference }}</td> {# SLL #}
+                                <td>{{ invoice_address(inv) }}</td> {# SLL #}
+                                <td>{{ bookings|length }}</td>
+                                <td>{{ pi_info['sum_days'] }}</td>
+                                <td>{{ pi_info['sum_cost'] }}</td>
+                                <td> {{ extra_costs }}</td>
+                                <td> <span class="font-weight-bold"> {{ to_invoice }}</span></td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+
+
+                {% endif %}
+
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- Application Modal -->
+<!-- ============================================================== -->
+<div class="modal fade" id="pi-invoices-modal" tabindex="-1" role="dialog" aria-labelledby="piInvoicesModal" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document" data-backdrop="static" data-keyboard="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title" id="pi-invoices-modal-title"> </h3>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="modal-body" id="pi-invoices-modal-body">
+        </div>
+    </div>
+    </div>
+</div>
+
+<script>
+
+$('.table-invoice').DataTable({
+    sDom: 'Brtip',
+    //sDom: 'lrtip',
+    paging: false,
+    info: false,
+    ordering: false,
+    buttons: [
+        {
+            extend: 'copy',
+            text: 'Copy to clipboard'
+        },
+        {
+            extend: 'csv',
+            title: '{{ table_file_prefix }}'
+        },
+        {
+            extend: 'excel',
+            title: '{{ table_file_prefix }}'
+        },
+        {
+            extend: 'pdf',
+            title: '{{ table_file_prefix }}'
+        },
+        'print'
+    ]
+    //ordering: false,
+});
+
+/* Show the Application Form, either for a new booking or an existing one */
+function showPiInvoicesForm(piId, piName) {
+    ajaxContent = get_ajax_content("invoices_lab_list", {pi_id: piId, period: {{ period.id }} });
+
+    ajaxContent.done(function(html) {
+        $("#pi-invoices-modal-title").html("Invoices: " + piName);
+        $("#pi-invoices-modal-body").html(html);
+        // Show the form after setting html content
+        $('#pi-invoices-modal').modal('show');
+    });
+
+    ajaxContent.fail(function(jqXHR, textStatus) {
+        alert( "Request failed: " + textStatus );
+    });
+}  // function showTransactionForm
+
+</script>
