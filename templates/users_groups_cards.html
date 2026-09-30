@@ -22,9 +22,11 @@
                                         </div>
                                     </div>
                                     {% endif %}
-                                {# SLL: col instead of col-5, so name/email share the remaining space #}
-                                <div class="col"><a href="javascript:showUser({{ user['id'] }})">{{ user['name'] }}</a></div>
-                                <div class="col"><label>{{ user['email'] }}</label></div>
+                                {# SLL: name and email stacked in one column, so narrow cards (laptop) don't wrap (core: two col-5) #}
+                                <div class="col" style="min-width: 0">
+                                    <a href="javascript:showUser({{ user['id'] }})">{{ user['name'] }}</a><br>
+                                    <small class="text-muted">{{ user['email'] }}</small>
+                                </div>
                             </div>
                         </li>
                     {% endfor %}
