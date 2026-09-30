@@ -580,6 +580,17 @@ Not changed / still worth a look
   connection - worth a manual smoke test once there's network access to
   ``https://cryoem.scilifelab.se``.
 
+Smoke test (2026-09-30, Gerrit)
+-------------------------------
+
+Tested locally with ``SLL_PORTAL_API`` temporarily set in the instance
+``config.py`` (removed afterwards): "Import Users" and "Import
+Applications" load and list data from the live Portal (read only, the
+import buttons were not used). Without ``SLL_PORTAL_API`` both pages
+crash with ``AttributeError: 'Flask' object has no attribute 'sll_pm'``
+(no guard, see section 5) - acceptable, since these pages are removed
+when the Portal is shut down.
+
 7. How session unique codes (``cem00734_00044``, ``dbb01967``, ...) are assigned (found 2026-09-22)
 ========================================================================================================
 
@@ -798,6 +809,22 @@ worth confirming with a real "leave it blank" submission before relying
 on this for production sessions - flagged in the Checklist rather than
 guessed at here.
 
+Smoke test (2026-09-30, Gerrit)
+-------------------------------
+
+Tested locally on the 2.0 checkout (not offline, real local server):
+
+- Created a session from a booking via "New Session" without a name:
+  it got the announced auto-assigned code (``cem#####_#####`` pattern),
+  the counter works.
+- The session **is** linked to the selected project, so the concern
+  above (project_id not saved when the name is left blank) does not
+  apply.
+- Found a core bug while cleaning up: deleting a session shows
+  ``DetachedInstanceError`` although the session is deleted
+  (``api.py`` returns ``session.json()`` after ``dm.delete_session()``,
+  ``Session.owner_id`` lazy-loads ``booking`` on the deleted object).
+
 8. Projects list in old layout (2026-09-28)
 =============================================
 
@@ -814,9 +841,9 @@ Checklist
 - [ ] Run ``scripts/20260921_fix_sll_missing_configs.py`` against the live
       SLL server
 - [x] Fill in real ``config:sessions.acquisition`` values per microscope
-- [ ] Decide fate of ``sessions_config`` (archive vs delete) after
+- [x] Decide fate of ``sessions_config`` (archive vs delete) after
       verifying the ``counters`` section against real booking/session
-      history
+      history - keep it, ``counters`` is livestate (see section 7)
 - [x] Decide booking permissions for Chamaleon / Aquilos 2 / Mass
       Photometry / Rapid Support Data Processing / Primo
 - [x] Make PortalManager degrade gracefully when the Portal is unreachable
@@ -829,14 +856,14 @@ Checklist
       API route, ``_get_users_from_portal()``) out of core into this
       repo's ``api.py``/``data_content.py``, and fix the pre-existing bugs
       that left "Import Users/Applications from Portal" unreachable
-- [ ] Smoke-test "Import Users from Portal" and "Import Applications from
+- [x] Smoke-test "Import Users from Portal" and "Import Applications from
       Portal" against a live Portal connection (not possible from this
       offline dev checkout)
 - [x] Fix the "New Session" dialog to use SLL's auto-numbering
       (cem/dbb/fac/ext + counter) instead of requiring a typed name with
       a date/resource prefix that matched no existing SLL session name
       (see section 7)
-- [ ] Smoke-test the "New Session" dialog end-to-end against a live
+- [x] Smoke-test the "New Session" dialog end-to-end against a live
       server: confirm a blank-name submission gets the suggested
       auto-assigned code, and decide whether project_id/extra-form data
       should be saved even when the name is left blank (today it isn't,
