@@ -50,7 +50,8 @@ core's templates, see emhub/__init__.py).
 
 Also: invoice information per PI (user.extra['invoice']) - content
 function user_invoice_form and wrappers around core's invoice_period /
-reports_invoices (see README.rst, section 12).
+reports_invoices (see README.rst, section 12), and the PI's university
+(invoice['university']) in core's report_pis_usage.
 """
 import os
 import datetime as dt
@@ -311,6 +312,7 @@ def register_content(dc):
             'user': user,
             'invoice': user.invoice or {},
             'invoice_fields': INVOICE_FIELDS,
+            'universities': _get_universities(),
         }
 
     # ------------------------------------------------------------------
@@ -322,12 +324,18 @@ def register_content(dc):
         return {u.id: u.invoice or {}
                 for u in dc.app.dm.get_users() if u.is_pi}
 
+    def _get_universities():
+        """ Code -> name, from form 'universities'. """
+        form = dc.app.dm.get_form_by_name('universities')
+        return {p['value']: p['label'] for p in form.definition['params']}
+
     _core_invoice_period = dc.get_content_func('invoice_period')
 
     @dc.content
     def invoice_period(**kwargs):
         data = _core_invoice_period(**kwargs)
         data['invoice_info'] = _get_invoice_info()
+        data['universities'] = _get_universities()
         return data
 
     _core_reports_invoices = dc.get_content_func('reports_invoices')
@@ -336,4 +344,26 @@ def register_content(dc):
     def reports_invoices(**kwargs):
         data = _core_reports_invoices(**kwargs)
         data['invoice_info'] = _get_invoice_info()
+        data['universities'] = _get_universities()
+        return data
+
+    # ------------------------------------------------------------------
+    # SLL: university of each PI from invoice['university'] instead of
+    # core's guess from the e-mail domain.
+    # PIs without it show 'z-Unknown' (sorted last).
+    # ------------------------------------------------------------------
+    _core_report_pis_usage = dc.get_content_func('report_pis_usage')
+
+    @dc.content
+    def report_pis_usage(**kwargs):
+        data = _core_report_pis_usage(**kwargs)
+        universities = _get_universities()
+
+        for pi in data['pi_list']:
+            user = dc.app.dm.get_user_by(email=pi['email'])
+            univ = (user.invoice or {}).get('university', '') if user else ''
+            pi['university'] = universities.get(univ, univ) or 'z-Unknown'
+
+        data['pi_list'].sort(key=lambda pi: (pi['university'] == 'z-Unknown',
+                                             pi['university'].lower()))
         return data

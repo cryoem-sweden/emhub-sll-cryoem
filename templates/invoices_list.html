@@ -3,7 +3,7 @@
    the Order Portal (portal_users). #}
 
 {% macro invoice_address(inv) -%}
-    {{ [inv.university, inv.department, inv.address, inv.zip, inv.city, inv.country]|select|join(', ') }}
+    {{ [(universities or {}).get(inv.university, inv.university), inv.department, inv.address, inv.zip, inv.city, inv.country]|select|join(', ') }}
     {%- if inv.vat %}, VAT: {{ inv.vat }}{% endif %}
 {%- endmacro %}
 

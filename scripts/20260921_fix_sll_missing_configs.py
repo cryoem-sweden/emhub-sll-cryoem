@@ -31,8 +31,14 @@ Context
 The SLL instance's DB (emhub.sqlite) predates the "config:" naming
 convention used by current EMhub core. A DB inspection (2026-09-21) showed
 it only has: sample, experiment, sessions_config (legacy, unused by
-current code), processing (legacy, unused), universities (still used,
-untouched), config:projects and config:bookings.
+current code), processing (legacy, unused), universities, config:projects and
+config:bookings.
+
+(2026-10-01 update) The "universities" form is replaced: instead of
+e-mail domains (core's report_pis_usage guessed the university with
+email.endswith(domain)) it now holds the university codes from the Order
+Portal dropdown. The university of a PI is stored as code in
+user.extra['invoice']['university'] (see README.rst, section 15).
 
 It is completely missing: config:permissions, config:sessions,
 config:reports, config:users and config:resources. Current core code
@@ -193,11 +199,53 @@ CONFIG_RESOURCES = {
     "currency": "SEK"
 }
 
+# University of a PI, stored as code in
+# user.extra['invoice']['university'].
+# Codes and names as in the Order Portal's university dropdown.
+# Replaces core's e-mail domain list (value was e.g. "uu.se").
+UNIVERSITIES = {
+    "title": "Universities",
+    "params": [
+        {"value": "KI", "label": "Karolinska institutet"},
+        {"value": "KTH", "label": "Kungliga Tekniska högskolan"},
+        {"value": "SU", "label": "Stockholms universitet"},
+        {"value": "UU", "label": "Uppsala universitet"},
+        {"value": "BTH", "label": "Blekinge tekniska högskola"},
+        {"value": "CTH", "label": "Chalmers tekniska högskola"},
+        {"value": "GU", "label": "Göteborgs universitet"},
+        {"value": "HS", "label": "Högskolan i Skövde"},
+        {"value": "KAU", "label": "Karlstads universitet"},
+        {"value": "LIU", "label": "Linköpings universitet"},
+        {"value": "LNU", "label": "Linnéuniversitetet"},
+        {"value": "LU", "label": "Lunds universitet"},
+        {"value": "MAU", "label": "Malmö universitet"},
+        {"value": "MDU", "label": "Mälardalens universitet"},
+        {"value": "MIU", "label": "Mittuniversitetet"},
+        {"value": "NRM", "label": "Naturhistoriska riksmuseet"},
+        {"value": "ORU", "label": "Örebro universitet"},
+        {"value": "SH", "label": "Södertörns högskola"},
+        {"value": "SLU", "label": "Sveriges lantbruksuniversitet"},
+        {"value": "UMU", "label": "Umeå universitet"},
+        {"value": "FHS", "label": "Försvarshögskolan"},
+        {"value": "GIH", "label": "Gymnastik- och idrottshögskolan"},
+        {"value": "HB", "label": "Högskolan i Borås"},
+        {"value": "HD", "label": "Högskolan Dalarna"},
+        {"value": "HH", "label": "Högskolan i Halmstad"},
+        {"value": "HHS", "label": "Handelshögskolan i Stockholm"},
+        {"value": "HIG", "label": "Högskolan i Gävle"},
+        {"value": "HKR", "label": "Högskolan Kristianstad"},
+        {"value": "HV", "label": "Högskolan Väst"},
+        {"value": "JU", "label": "Högskolan i Jönköping"},
+        {"value": "LTU", "label": "Luleå tekniska universitet"},
+    ]
+}
+
 NEW_CONFIGS = {
     "config:permissions": CONFIG_PERMISSIONS,
     "config:reports": CONFIG_REPORTS,
     "config:users": CONFIG_USERS,
     "config:resources": CONFIG_RESOURCES,
+    "universities": UNIVERSITIES,
 }
 # config:sessions is handled separately by update_sessions_create_session()
 # below (a merge, not a blind replace like the ones above).

@@ -22,7 +22,25 @@
             <div class="form-group row">
               <label for="invoice-{{ key }}" class="col-12 col-sm-3 col-form-label text-sm-right">{{ label }}{% if required %} *{% endif %}</label>
               <div class="col-12 col-sm-8">
-                {% if multiline %}
+                {% if key == 'university' %}
+                  {# SLL: dropdown from form 'universities' + free text if not in list (as in the Portal) #}
+                  {% set value = invoice.get(key, '') %}
+                  <div class="row">
+                    <div class="col-12 col-sm-6">
+                      <select id="invoice-university" class="selectpicker show-tick" data-width="100%" data-live-search="true" {{ 'disabled' if not can_edit }}>
+                        <option value="">[select from the list]</option>
+                        {% for code, name in universities.items() %}
+                          <option value="{{ code }}" {{ 'selected' if code == value }}>{{ code }} ({{ name }})</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                      <input type="text" id="invoice-university-other" class="form-control"
+                             placeholder="Other: full name if not in list"
+                             value="{{ value if value not in universities }}" {{ readonly }}>
+                    </div>
+                  </div>
+                {% elif multiline %}
                   <textarea id="invoice-{{ key }}" class="form-control" rows="3" {{ readonly }}>{{ invoice.get(key, '') }}</textarea>
                 {% else %}
                   <input type="text" id="invoice-{{ key }}" class="form-control" value="{{ invoice.get(key, '') }}" {{ readonly }}>
@@ -45,6 +63,11 @@
     </div>
   </div>
 
+<script>
+// SLL: same dropdown style as in core's user_form.html (bootstrap-select)
+$('#invoice-university').selectpicker();
+</script>
+
 {% if can_edit %}
 <script>
 function onInvoiceSave() {
@@ -55,6 +78,9 @@ function onInvoiceSave() {
     {% if required %}$('#invoice-{{ key }}').toggleClass('is-invalid', !invoice['{{ key }}']);
     if (!invoice['{{ key }}']) missing.push('{{ label }}');{% endif %}
     {% endfor %}
+
+    // SLL: code from the dropdown, otherwise the free text
+    invoice['university'] = $('#invoice-university').val() || $('#invoice-university-other').val().trim();
 
     if (missing.length) {
         // shown inside this modal (a showError dialog would open behind it)
