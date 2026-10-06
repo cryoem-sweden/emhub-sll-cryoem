@@ -1,0 +1,115 @@
+
+
+<div class="container-fluid  dashboard-content">
+    <!-- Header -->
+{#    {% set title = "Booking Calendar" %}#}
+{#    {% include 'include_header.html' %}#}
+
+    <!-- ============================================================== -->
+    <!-- events calendar -->
+    <!-- ============================================================== -->
+
+    <div class="row">
+        <div class="col-xl-12 col-lg-12 col-md-12 col-sm-12 col-12">
+            <div class="card">
+                <div class="card-body">
+
+                    <!-- Calendar selection header row -->
+                    <div class="row" style="margin-bottom: 20px;">
+                        <div class="col col-auto" style="margin-top: 7px;">
+                            <h3> Booking Calendar </h3>
+                        </div>
+                        <div class="col nopadding">
+
+                        </div>
+                        <div class="col text-right" style="margin-top: 7px;">
+                            <h5> Display </h5>
+                        </div>
+                        <div class="col col-auto nopadding">
+                            <select id="selectpicker-resource-display" class="selectpicker show-tick" multiple data-width="auto" data-selected-text-format="count > 2" title="Select Resource to display..."  data-actions-box="true"  onchange="filterBookingsByResources()">
+                            {% for r in resources %}
+                                {% set selected = 'selected' if r['id'] in selected_resources else '' %}
+                                <option {{ selected }} value="{{r['id']}}" class="badge" style="background: {{ r['color'] }}; color: #fff;">{{r['name']}}</option>
+                            {% endfor %}
+                            </select>
+                        </div>
+                        {# SLL: show/hide slots (core param 'slots', 0 = hidden) #}
+                        <div class="col col-auto">
+                            <a class="btn btn-light" href="{{ url_for_content('booking_calendar', slots=0 if slots else 1) }}">{{ 'Hide slots' if slots else 'Show slots' }}</a>
+                        </div>
+                    </div>
+
+                    <div class='row'>
+                        <div class="col-12">
+                            <div id='booking_calendar'></div>
+                        </div>
+                        <div style='clear:both'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- ============================================================== -->
+    <!-- end events calendar -->
+    <!-- ============================================================== -->
+    </div>
+
+<!-- Modal Message -->
+<div class="modal" id="message-modal" tabindex="-1" role="dialog" aria-labelledby="messageModal" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="message-title">Message Title  (REPLACE ME) </h3>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body" id="message-body"> Message Body (REPLACE ME) </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary"  data-dismiss="modal">Ok</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- javascript  -->
+<script>
+
+    var modify_all = false;
+    var original_range = null;
+    var hidden_events = [];
+    var hide_slots = {{ slots|tojson }} == false;
+
+(function(window, document, $, undefined) {
+    "use strict";
+
+    $('select').selectpicker();
+
+   /* Create Calendar */
+    calendar = createCalendar();
+    calendar.render();
+
+    on_bookings_created = function (jsonResponse){
+        add_bookings(jsonResponse.bookings_created);
+    };
+    on_bookings_updated = function (jsonResponse){
+        remove_bookings(jsonResponse.bookings_updated);
+        add_bookings(jsonResponse.bookings_updated);
+    };
+    on_bookings_deleted = function (jsonResponse){
+       remove_bookings(jsonResponse.bookings_deleted);
+    };
+
+    // Hack to enable multiple modals by making sure the .modal-open class
+    // is set to the <body> when there is at least one modal open left
+    $('body').on('hidden.bs.modal', function () {
+
+        if ($('.modal.show').length > 0)
+        {
+            $('body').addClass('modal-open');
+        }
+    });
+
+})(window, document, window.jQuery);
+
+</script>
