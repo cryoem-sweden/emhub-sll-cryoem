@@ -47,7 +47,8 @@ these forms have never existed in the SLL production DB.
 
 Forms present in the live DB: ``sample``, ``experiment``, ``sessions_config``
 (legacy, see section 2), ``processing`` (legacy/unused), ``universities``
-(still actively used - untouched), ``config:projects``, ``config:bookings``.
+(replaced by this script with the university codes, see section 15),
+``config:projects``, ``config:bookings``.
 
 Forms that were **missing**: ``config:permissions``, ``config:sessions``,
 ``config:reports``, ``config:users``, ``config:resources``.
@@ -928,6 +929,51 @@ and 7348 missing). Old periods are not corrected; periods still active on
 ``templates/users_groups_cards.html``: buttons in one line (``col-auto`` +
 ``d-flex``), name and e-mail stacked in one column, so the cards don't
 wrap on narrow screens.
+
+15. University of a PI in the invoice data (2026-10-05)
+========================================================
+
+Problem
+-------
+
+- The "University" in the invoice data (section 12) was free text, so the
+  same university was written in different ways.
+- Core's report "All PIs Usage" (``report_pis_usage``) guesses the
+  university from the PI's e-mail domain with ``email.endswith(domain)``,
+  using the form ``universities`` (``value`` = domain, e.g. ``uu.se``).
+  This gives wrong results: ``chem.gu.se`` is shown as Gothenburg for a UU
+  PI, ``lu.se`` also matches ``slu.se``, and ``scilifelab.se``,
+  ``helsinki.fi`` etc. end up as ``z-Unknown``. The old form only had
+  8 universities.
+- The form ``universities`` is only read in this one report (core 2.0 and
+  0.6.2), so it can be reused.
+
+Fix (SLL repo only, core unchanged)
+-----------------------------------
+
+- Fix script: the form ``universities`` now holds the university codes and
+  names from the Order Portal dropdown (``KI`` -> Karolinska institutet,
+  ``UU`` -> Uppsala universitet, ... 31 entries) instead of
+  e-mail domains. Same structure as before (``params`` with ``value`` and
+  ``label``).
+- ``templates/user_invoice_form.html``: "University" is a dropdown from the
+  form ``universities`` (``selectpicker`` with search, as in core's user
+  form) plus a free text field for universities not in the list.
+  ``invoice['university']`` stores the code, or the free text.
+- ``templates/invoices_list.html``: the invoice address shows the
+  university name instead of the code (macro ``invoice_address``).
+- ``data_content.py``: ``_get_universities()`` (code -> name); the
+  wrappers ``invoice_period`` / ``reports_invoices`` also pass
+  ``universities``; new wrapper ``report_pis_usage`` replaces core's guess
+  with the university from the PI's invoice data. PIs without it show
+  ``z-Unknown`` and are sorted last.
+
+Notes
+-----
+
+- Without our wrapper, core's report would show ``z-Unknown`` for every PI,
+  because the form no longer holds e-mail domains.
+  Maybe that is a function worth taking over into core.
  
 Checklist
 =========
@@ -975,6 +1021,8 @@ Checklist
 - [ ] ``showBookingCosts()`` / ``booking_costs_table``: not linked from any
       template anymore (dead code?)
 - [x] Invoice data stored in EMhub instead of the Portal (section 12)
+- [x] University of a PI as code from the form ``universities``, used in
+      the invoices and the "All PIs Usage" report (section 15)
 - [ ] Go-live BLOCKER: users/PIs can't save their own profile or
       password (core ``update_user_form`` reads the disabled status
       field) - core fix or SLL workaround before go-live
