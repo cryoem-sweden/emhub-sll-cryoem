@@ -367,3 +367,32 @@ def register_content(dc):
         data['pi_list'].sort(key=lambda pi: (pi['university'] == 'z-Unknown',
                                              pi['university'].lower()))
         return data
+
+    # ------------------------------------------------------------------
+    # SLL: raw table of the invoice data per PI (user.extra['invoice']).
+    # Read-only, admins only (raw permission).
+    # Shown under DEVEL -> Raw Data Tables.
+    # ------------------------------------------------------------------
+    @dc.content
+    def raw_invoice_data_list(**kwargs):
+        universities = _get_universities()
+        rows = []
+        for u in dc.app.dm.get_users(orderBy='name'):
+            if not u.is_pi:
+                continue
+            inv = u.invoice or {}
+            univ = inv.get('university', '')
+            rows.append({
+                'id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'reference': inv.get('reference', ''),
+                'vat': inv.get('vat', ''),
+                'university': universities.get(univ, univ),
+                'department': inv.get('department', ''),
+                'address': inv.get('address', ''),
+                'zip': inv.get('zip', ''),
+                'city': inv.get('city', ''),
+                'country': inv.get('country', ''),
+            })
+        return {'invoice_rows': rows}

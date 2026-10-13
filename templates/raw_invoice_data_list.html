@@ -1,0 +1,87 @@
+<!-- ============================================================== -->
+<!-- SLL: raw table of the invoice data per PI (user.extra['invoice']) -->
+<!-- Edit opens the invoice modal (user_invoice_form), like user_form.html -->
+<!-- Content function raw_invoice_data_list in data_content.py           -->
+<!-- ============================================================== -->
+{% set is_admin = current_user.is_admin %}
+
+<div class="container-fluid dashboard-content">
+    <!-- Header -->
+    {% set title = "Invoice Data (PIs)" %}
+    {% set navigation = [('Admin', ''), ('Invoice Data', '')] %}
+    {% include 'include_header.html' %}
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="invoice-table" class="table table-striped w-100">
+                            <thead>
+                            <tr>
+                                {% if is_admin %}
+                                    <th>actions</th>
+                                {% endif %}
+                                <th>id</th>
+                                <th>name</th>
+                                <th>email</th>
+                                <th>reference</th>
+                                <th>VAT</th>
+                                <th>university</th>
+                                <th>department</th>
+                                <th>address</th>
+                                <th>zip</th>
+                                <th>city</th>
+                                <th>country</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for r in invoice_rows %}
+                                <tr>
+                                    {% if is_admin %}
+                                    <td>
+                                        <div class="col-1"><a href="javascript:editInvoice({{ r.id }})"><i class="fas fa-edit"></i></a></div>
+                                    </td>
+                                    {% endif %}
+                                    <td>{{ r.id }}</td>
+                                    <td>{{ r.name }}</td>
+                                    <td>{{ r.email }}</td>
+                                    <td>{{ r.reference }}</td>
+                                    <td>{{ r.vat }}</td>
+                                    <td>{{ r.university }}</td>
+                                    <td>{{ r.department }}</td>
+                                    <td style="white-space: pre-line">{{ r.address }}</td>
+                                    <td>{{ r.zip }}</td>
+                                    <td>{{ r.city }}</td>
+                                    <td>{{ r.country }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- end table row -->
+</div>
+
+<script>
+(function(window, document, $, undefined) {
+    "use strict";
+    $('#invoice-table').DataTable({
+        sDom: 'lfrtip',
+        paging: false,
+        info: false,
+        order: [[ {{ 2 if is_admin else 1 }}, "asc" ]]  // by name
+    });
+})(window, document, window.jQuery);
+
+{% if is_admin %}
+// SLL: open the invoice modal (same as showUserInvoice in user_form.html).
+function editInvoice(userId) {
+    show_modal_from_ajax('experiment-modal',
+                         get_ajax_content('user_invoice_form', {user_id: userId}));
+}
+{% endif %}
+</script>
